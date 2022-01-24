@@ -2,7 +2,7 @@ import numpy as np
 
 '''
 This function calculates the shifts for each of the co moving frames for the model reduction by shifted POD, shifted
-rPCA, and shifted DEIM. This is totally problem specific and is expected to be customized by the needs of the user 
+rPCA. This is totally problem specific and is expected to be customized by the needs of the user 
 and the setup of the problem. 
 '''
 

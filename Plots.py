@@ -29,31 +29,6 @@ class PlotFlow:
             self.__srPCA(SnapMat)
 
     def __FOM(self, SnapMat, X, t):
-        # Plot the Conserved variables per time step
-        # fig, axes = plt.subplots(nrows=1, ncols=2, sharex=False)
-        # titles = ['T vs X', 'S vs X']
-        # for n in range(self.__Nt):
-        #     if n % self.__PlotFrequency == 0:
-        #         y_vals = [SnapMat[0:self.__Nx, n], SnapMat[self.__Nx:self.__NumVar * self.__Nx, n]]
-        #         x_vals = [X, X]
-        #         y_limit = [[0, 2000], [0, 1]]
-        #         x_limit = [[0, X[-1]], [0, X[-1]]]
-        #         y_label = ['T', 'S']
-        #         x_label = ['X', 'X']
-        #         for ax, title, x, y, x_lim, y_lim, x_lab, y_lab in zip(axes.flat, titles, x_vals, y_vals,
-        #                                                                x_limit, y_limit, x_label, y_label):
-        #             ax.plot(x, y)
-        #             ax.set_title(title)
-        #             ax.grid(True)
-        #             ax.set_xlim(x_lim)
-        #             ax.set_ylim(y_lim)
-        #             ax.set_xlabel(x_lab)
-        #             ax.set_ylabel(y_lab)
-        #         plt.draw()
-        #         plt.tight_layout()
-        #         plt.pause(0.05)
-        # plt.show(block=True)
-
         T = SnapMat[0:self.__Nx, :]
         S = SnapMat[self.__Nx:self.__NumVar * self.__Nx, :]
 
@@ -63,28 +38,28 @@ class PlotFlow:
         plt.pcolormesh(self.__X_grid, self.__t_grid, S)
         plt.savefig("SupplyMassFractionOriginal.png")
 
-        # # Plot the singular value decay of the original model based on the (temperature) snapshot matrix
-        # U, SIG, VH = np.linalg.svd(T)
-        # fig, ax = plt.subplots()
-        # ax.plot(SIG / np.sum(SIG), color="red", marker="o")
-        # ax.set_xlabel("Number of modes", fontsize=14)
-        # ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
-        # ax2 = ax.twinx()
-        # ax2.plot(SIG, color="blue", marker="o")
-        # ax2.set_yscale('log')
-        # ax2.set_ylabel("Semi log plot for the singular values", color="blue", fontsize=14)
-        # plt.savefig("SVDecayOriginalModel_T.png", bbox_inches='tight', dpi=100)
-        #
-        # U, SIG, VH = np.linalg.svd(S)
-        # fig, ax = plt.subplots()
-        # ax.plot(SIG / np.sum(SIG), color="red", marker="o")
-        # ax.set_xlabel("Number of modes", fontsize=14)
-        # ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
-        # ax2 = ax.twinx()
-        # ax2.plot(SIG, color="blue", marker="o")
-        # ax2.set_yscale('log')
-        # ax2.set_ylabel("Semi log plot for the singular values", color="blue", fontsize=14)
-        # plt.savefig("SVDecayOriginalModel_S.png", bbox_inches='tight', dpi=100)
+        # Plot the singular value decay of the original model based on the (temperature) snapshot matrix
+        U, SIG, VH = np.linalg.svd(T)
+        fig, ax = plt.subplots()
+        ax.plot(SIG / np.sum(SIG), color="red", marker="o")
+        ax.set_xlabel("Number of modes", fontsize=14)
+        ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
+        ax2 = ax.twinx()
+        ax2.plot(SIG, color="blue", marker="o")
+        ax2.set_yscale('log')
+        ax2.set_ylabel("Semi log plot for the singular values", color="blue", fontsize=14)
+        plt.savefig("SVDecayOriginalModel_T.png", bbox_inches='tight', dpi=100)
+
+        U, SIG, VH = np.linalg.svd(S)
+        fig, ax = plt.subplots()
+        ax.plot(SIG / np.sum(SIG), color="red", marker="o")
+        ax.set_xlabel("Number of modes", fontsize=14)
+        ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
+        ax2 = ax.twinx()
+        ax2.plot(SIG, color="blue", marker="o")
+        ax2.set_yscale('log')
+        ax2.set_ylabel("Semi log plot for the singular values", color="blue", fontsize=14)
+        plt.savefig("SVDecayOriginalModel_S.png", bbox_inches='tight', dpi=100)
 
         print('All the plots for the ORIGINAL MODEL saved')
 
@@ -120,33 +95,10 @@ class PlotFlow:
         plt.savefig("TemperatureSPODFrame1.png")
         plt.pcolormesh(self.__X_grid, self.__t_grid, T_f2)
         plt.savefig("TemperatureSPODFrame2.png")
-        # plt.pcolormesh(self.__X_grid, self.__t_grid, S_f1)
-        # plt.savefig("SupplyMassFractionSPODFrame1.png")
-        # plt.pcolormesh(self.__X_grid, self.__t_grid, S_f2)
-        # plt.savefig("SupplyMassFractionSPODFrame2.png")
-
-        # # Plot the singular value decay of the individual frames (Only done for the Temperature variable)
-        # U, SIG, VH = np.linalg.svd(T_f1)
-        # fig, ax = plt.subplots()
-        # ax.plot(SIG / np.sum(SIG), color="red", marker="o")
-        # ax.set_xlabel("Number of modes", fontsize=14)
-        # ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
-        # ax2 = ax.twinx()
-        # ax2.plot(SIG, color="blue", marker="o")
-        # ax2.set_yscale('log')
-        # ax2.set_ylabel("Semi log plot for the singular values", color="blue", fontsize=14)
-        # plt.savefig("SVDecaySPODModelframe1_T.png", bbox_inches='tight', dpi=100)
-        #
-        # U, SIG, VH = np.linalg.svd(T_f2)
-        # fig, ax = plt.subplots()
-        # ax.plot(SIG / np.sum(SIG), color="red", marker="o")
-        # ax.set_xlabel("Number of modes", fontsize=14)
-        # ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
-        # ax2 = ax.twinx()
-        # ax2.plot(SIG, color="blue", marker="o")
-        # ax2.set_yscale('log')
-        # ax2.set_ylabel("Semi log plot for the singular values", color="blue", fontsize=14)
-        # plt.savefig("SVDecaySPODModelframe2_T.png", bbox_inches='tight', dpi=100)
+        plt.pcolormesh(self.__X_grid, self.__t_grid, S_f1)
+        plt.savefig("SupplyMassFractionSPODFrame1.png")
+        plt.pcolormesh(self.__X_grid, self.__t_grid, S_f2)
+        plt.savefig("SupplyMassFractionSPODFrame2.png")
 
         print('All the plots for the SHIFTED POD MODEL saved')
 
@@ -160,32 +112,9 @@ class PlotFlow:
         plt.savefig("TemperatureSRPCAFrame1.png")
         plt.pcolormesh(self.__X_grid, self.__t_grid, T_f2)
         plt.savefig("TemperatureSRPCAFrame2.png")
-        # plt.pcolormesh(self.__X_grid, self.__t_grid, S_f1)
-        # plt.savefig("SupplyMassFractionSRPCAFrame1.png")
-        # plt.pcolormesh(self.__X_grid, self.__t_grid, S_f2)
-        # plt.savefig("SupplyMassFractionSRPCAFrame2.png")
-
-        # # Plot the singular value decay of the individual frames (Only done for the Temperature variable)
-        # U, SIG, VH = np.linalg.svd(T_f1)
-        # fig, ax = plt.subplots()
-        # ax.plot(SIG / np.sum(SIG), color="red", marker="o")
-        # ax.set_xlabel("Number of modes", fontsize=14)
-        # ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
-        # ax2 = ax.twinx()
-        # ax2.plot(SIG, color="blue", marker="o")
-        # ax2.set_yscale('log')
-        # ax2.set_ylabel("Semi log plot for the singular values", color="blue", fontsize=14)
-        # plt.savefig("SVDecayRPCAModelframe1_T.png", bbox_inches='tight', dpi=100)
-        #
-        # U, SIG, VH = np.linalg.svd(T_f2)
-        # fig, ax = plt.subplots()
-        # ax.plot(SIG / np.sum(SIG), color="red", marker="o")
-        # ax.set_xlabel("Number of modes", fontsize=14)
-        # ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
-        # ax2 = ax.twinx()
-        # ax2.plot(SIG, color="blue", marker="o")
-        # ax2.set_yscale('log')
-        # ax2.set_ylabel("Semi log plot for the singular values", color="blue", fontsize=14)
-        # plt.savefig("SVDecayRPCAModelframe2_T.png", bbox_inches='tight', dpi=100)
+        plt.pcolormesh(self.__X_grid, self.__t_grid, S_f1)
+        plt.savefig("SupplyMassFractionSRPCAFrame1.png")
+        plt.pcolormesh(self.__X_grid, self.__t_grid, S_f2)
+        plt.savefig("SupplyMassFractionSRPCAFrame2.png")
 
         print('All the plots for the SHIFTED rPCA MODEL saved')

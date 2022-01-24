@@ -3,7 +3,9 @@ from sklearn.utils.extmath import randomized_svd
 from transforms import Transforms
 
 '''
-This class performs the shifted POD on the snapshot matrix (reference to sPOD paper) given:
+This class performs the shifted POD on the snapshot matrix 
+(https://scholar.google.de/citations?view_op=view_citation&hl=de&user=2LkMDgwAAAAJ&citation_for_view=2LkMDgwAAAAJ:mB3voiENLucC) 
+given:
 'Number of grid points'
 'Time steps'
 'Number of Iterations for the sPOD algorithm'

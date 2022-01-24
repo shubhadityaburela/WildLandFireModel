@@ -5,7 +5,6 @@ from sPOD import sPOD
 from SnapPOD import SnapShotPOD
 from srPCA import srPCA
 from Plots import PlotFlow
-from transforms import Transforms
 import time
 import numpy as np
 
@@ -13,10 +12,10 @@ import numpy as np
 if __name__ == '__main__':
 
     # This condition solves the wildfire model and saves the results in .npy files for model reduction
-    solve_wildfire = False
+    solve_wildfire = True
     if solve_wildfire:
         tic = time.perf_counter()
-        wf = Wildfire(Nxi=1000, timesteps=30000, InitCond='Wildfire', Periodicity='Periodic')
+        wf = Wildfire(Nxi=1000, timesteps=30000, Periodicity='Periodic')
         wf.solver()
         NumVar = int(np.size(wf.qs, 0) / int(np.size(wf.X)))
         toc = time.perf_counter()
@@ -50,26 +49,6 @@ if __name__ == '__main__':
     print('Matrix and grid data loaded')
 
     ############################################################
-    # # Calculate the Interpolation error
-    # NumVar = int(np.size(SnapShotMatrix, 0) / int(np.size(X)))
-    # tfr = Transforms(X, NumVar)
-    # tfr.MatList = []
-    # tfr.RevMatList = []
-    # for k in range(2):
-    #     tfr.MatList.append(tfr.TransMat(delta[k], X))
-    #     tfr.RevMatList.append(tfr.TransMat(-delta[k], X))
-    #
-    # T = SnapShotMatrix[0:np.size(X), :]
-    # Frame0View = tfr.revshift1D(SnapShotMatrix, delta[0], ShiftMethod='Lagrange Interpolation', frame=0)
-    # Frame1View = tfr.revshift1D(SnapShotMatrix, delta[1], ShiftMethod='Lagrange Interpolation', frame=1)
-    # Lab0View = tfr.shift1D(Frame0View, delta[0], ShiftMethod='Lagrange Interpolation', frame=0)
-    # Lab1View = tfr.shift1D(Frame1View, delta[1], ShiftMethod='Lagrange Interpolation', frame=1)
-    #
-    # res = Lab0View[0:np.size(X), :] - T
-    # IntErr = np.linalg.norm(res) / np.linalg.norm(T)
-    # print(IntErr)
-
-    ############################################################
     # MODEL REDUCTION FRAMEWORK
     # Method chosen for model reduction
     method = 'srPCA'
@@ -80,7 +59,7 @@ if __name__ == '__main__':
     S = SnapShotMatrix[Nx:NumVar * Nx, :]
     if method == 'SnapShotPOD':
         tic = time.perf_counter()
-        SnapMat = SnapShotPOD(U=SnapShotMatrix, X=X, t=t, NumModes=1000)
+        SnapMat = SnapShotPOD(U=SnapShotMatrix, X=X, t=t, NumModes=10)
         toc = time.perf_counter()
         print(f"Time consumption in solving Snapshot POD : {toc - tic:0.4f} seconds")
         # Error norms

@@ -3,12 +3,13 @@ import numpy as np
 import math
 
 '''
-This class solves the Convection diffusion reaction equation of the Wildfire model from "give the refreence of the paper"
+This class solves the Convection diffusion reaction equation of the Wildfire model from 
+"https://arxiv.org/abs/2106.11381give"
 '''
 
 
 class Wildfire:
-    def __init__(self, Nxi: int, timesteps: int, InitCond: str, Periodicity: str) -> None:
+    def __init__(self, Nxi: int, timesteps: int, Periodicity: str) -> None:
         # Assertion statements for checking the sanctity of the input variables
         assert Nxi > 0, f"Please input sensible values for the grid points"
         assert timesteps >= 0, f"Please input sensible values for time steps"
@@ -28,9 +29,6 @@ class Wildfire:
         # Order of accuracy for the derivative matrices of the first and second order
         self.__firstderivativeOrder = 6
         self.__secondderivativeOrder = 6
-
-        # Type of initial condition selection
-        self.__startValue = InitCond
 
         # Dimensional constants used in the model
         self.__thermaldiffusivity = 0.2136
@@ -88,12 +86,8 @@ class Wildfire:
         self.t = dt * np.arange(self.__timesteps)
 
         # Select the correct Initial conditions
-        if self.__startValue == 'Wildfire':
-            T = 1200 * np.exp(-((self.X - self.__Lxi / 2) ** 2) / 200)
-            S = np.ones(self.__Nxi)
-        else:
-            print('what is the start condition')
-            exit()
+        T = 1200 * np.exp(-((self.X - self.__Lxi / 2) ** 2) / 200)
+        S = np.ones(self.__Nxi)
 
         # Arrange the values of T and S in 'q'
         q = np.array([T, S]).T

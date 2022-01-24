@@ -3,9 +3,9 @@ from sklearn.utils.extmath import randomized_svd
 from transforms import Transforms
 
 '''
-
-
-
+This class perform Shifted robust PCA given:
+Snapshot Matrix
+transforms (Shifts)
 '''
 
 
