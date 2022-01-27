@@ -6,7 +6,7 @@ The code is very easy to follow. The entry point is "main.py".
 Control parameters in main.py:
 - `solve_wildfire` which when set as True will generate the necessary files for the model reduction framework. This only needs to be set as True once to generate the data for a user defined (`Nxi`:grid points, `timesteps`:number of time steps).
 - `method` which sets the desired method for model reduction. Options are:
-  - `SnapPOD` : Snapshot POD method
+  - `SnapShotPOD` : Snapshot POD method
   - `FTR` : Front transport reduction
   - `sPOD` : Shifted POD
   - `srPCA` : Shifted robust PCA
