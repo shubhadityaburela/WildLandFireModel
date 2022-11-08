@@ -2,13 +2,6 @@ import numpy as np
 from sklearn.utils.extmath import randomized_svd
 from scipy import special
 
-'''
-This class performs FTR (Front Transport Reconstruction) given:
-'Number of grid Points'
-'Number of time steps'
-'Snapshot matrix'
-'''
-
 
 class FTR:
     def __init__(self, SnapShotMatrix, X, t, RandomizedSVD: bool) -> None:
@@ -31,18 +24,6 @@ class FTR:
         self.t = t
         # Concatenated data structure for the signed distance function for all time steps
         self.phis = np.zeros((self.__Nx, self.__Nt), dtype=float)
-
-    # Class methods are such methods which change the class variables. If we had defined the "qs", "X" and "t" outside
-    # the "__init__" that means just below the class clause then it makes these variables class variables. The variables
-    # having "self." are called instance variables and cannot be changed by the class methods. For the class variables
-    # "@classmethod" is the best way to change the variables but sadly that is not the case here. The class method
-    # written below is just for show, not of any actual use.
-    # @classmethod
-    # def ReadGridData(cls, SnapShotMatrix, X, t) -> None:
-    #     cls.qs = SnapShotMatrix
-    #     cls.X = X
-    #     cls.t = t
-    #     pass
 
     def FtrAlg(self, CutoffRank, PerformSVD):
         # We start with calculating the signed distances at each time step

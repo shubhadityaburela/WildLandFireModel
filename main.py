@@ -5,107 +5,134 @@ from sPOD import sPOD
 from SnapPOD import SnapShotPOD
 from srPCA import srPCA
 from Plots import PlotFlow
+from transforms import Transforms
 import time
 import numpy as np
+import sys
+import os
 
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
+import matplotlib.pyplot as plt
 
-    # This condition solves the wildfire model and saves the results in .npy files for model reduction
-    solve_wildfire = True
-    if solve_wildfire:
-        tic = time.perf_counter()
-        wf = Wildfire(Nxi=1000, timesteps=30000, Periodicity='Periodic')
-        wf.solver()
-        NumVar = int(np.size(wf.qs, 0) / int(np.size(wf.X)))
-        toc = time.perf_counter()
-        print(f"Time consumption in solving wildfire PDE : {toc - tic:0.4f} seconds")
+impath = "./data/"
+os.makedirs(impath, exist_ok=True)
 
-        # Create the Shifts for the Wildfire model. This function will only be called once and then the results will be
-        # stored. (DEPENDENT on the problem setup)
-        delta = Shifts(SnapShotMatrix=wf.qs, X=wf.X, t=wf.t, TypeOfShift='Gradient based')
+# This condition solves the wildfire model and saves the results in .npy files for model reduction
+solve_wildfire = True
+Dimension = "1D"
+if solve_wildfire:
+    tic = time.process_time()
+    wf = Wildfire(Nxi=1000, Neta=1 if Dimension == "1D" else 1000, timesteps=100)
+    wf.solver()
+    toc = time.process_time()
+    print(f"Time consumption in solving wildfire PDE : {toc - tic:0.4f} seconds")
 
-        # Plot the Full Order Model (FOM)
-        PlotFlow(Model='FOM', SnapMat=wf.qs, X=wf.X, t=wf.t, NumVar=NumVar)
+    # Plot the Full Order Model (FOM)
+    PlotFlow(Model='FOM', SnapMat=wf.qs, X=wf.X, Y=wf.Y, X_2D=wf.X_2D, Y_2D=wf.Y_2D, t=wf.t, d=Dimension)
 
-        # Save the Snapshot matrix, grid and the time array
-        print('Saving the matrix and the grid data')
-        np.save('SnapShotMatrix.npy', wf.qs)
-        np.save('Grid.npy', wf.X)
-        np.save('Time.npy', wf.t)
-        np.save('Shifts.npy', delta)
-
-    # Read the data
-    SnapShotMatrix = np.load('SnapShotMatrix.npy')
-    X = np.load('Grid.npy')
-    t = np.load('Time.npy')
-    delta = np.load('Shifts.npy')
-    flag = np.size(SnapShotMatrix)
-    if flag:
-        print('Primary requirements of the input data for the model reduction framework met')
+    # Create the Shifts for the Wildfire model. This function will only be called once and then the results will be
+    # stored. (DEPENDENT on the problem setup)
+    if Dimension == "1D":
+        deltaNew, deltaOld = Shifts(SnapShotMatrix=wf.qs, X=wf.X, t=wf.t, TypeOfShift='Gradient based')
     else:
-        print('Inconsistent input data for the Model reduction framework')
+        print("Shifts for 2D wildfire not implemented yet")
         exit()
-    print('Matrix and grid data loaded')
 
-    ############################################################
-    # MODEL REDUCTION FRAMEWORK
-    # Method chosen for model reduction
-    method = 'srPCA'
-    Nx = int(np.size(X))
-    Nt = int(np.size(t))
-    NumVar = int(np.size(SnapShotMatrix, 0) / int(np.size(X)))
-    T = SnapShotMatrix[0:Nx, :]
-    S = SnapShotMatrix[Nx:NumVar * Nx, :]
-    if method == 'SnapShotPOD':
-        tic = time.perf_counter()
-        SnapMat = SnapShotPOD(U=SnapShotMatrix, X=X, t=t, NumModes=10)
-        toc = time.perf_counter()
-        print(f"Time consumption in solving Snapshot POD : {toc - tic:0.4f} seconds")
-        # Error norms
-        TMod = SnapMat[0:Nx, :]
-        SMod = SnapMat[Nx:NumVar * Nx, :]
-        ResT = T - TMod
-        ResS = S - SMod
-        ResErrT = np.linalg.norm(ResT) / np.linalg.norm(T)
-        ResErrS = np.linalg.norm(ResS) / np.linalg.norm(S)
-        print(f"Residual Error norm for T : {ResErrT:0.7f}")
-        print(f"Residual Error norm for S : {ResErrS:0.7f}")
-        # Plots
-        PlotFlow(Model='SnapShotPOD', SnapMat=SnapMat, X=X, t=t, NumVar=NumVar)
-    elif method == 'FTR':
-        tic = time.perf_counter()
-        ftr = FTR(SnapShotMatrix=SnapShotMatrix, X=X, t=t, RandomizedSVD=True)
-        SnapMat = ftr.FtrAlg(CutoffRank=10, PerformSVD=True)
-        toc = time.perf_counter()
-        print(f"Time consumption in solving FTR : {toc - tic:0.4f} seconds")
-        # Error norms
-        TMod = SnapMat[0:Nx, :]
-        SMod = SnapMat[Nx:NumVar * Nx, :]
-        ResT = T - TMod
-        ResS = S - SMod
-        ResErrT = np.linalg.norm(ResT) / np.linalg.norm(T)
-        ResErrS = np.linalg.norm(ResS) / np.linalg.norm(S)
-        print(f"Residual Error norm for T : {ResErrT:0.7f}")
-        print(f"Residual Error norm for S : {ResErrS:0.7f}")
-        # Plots
-        PlotFlow(Model='FTR', SnapMat=SnapMat, X=X, t=t, NumVar=NumVar)
-    elif method == 'sPOD':
-        tic = time.perf_counter()
-        ModesPerFrame = np.array([1, 1])
-        spod = sPOD(SnapShotMatrix=SnapShotMatrix, delta=delta, X=X, t=t, Iter=10, ModesPerFrame=ModesPerFrame,
-                    RandomizedSVD=True, GradAlg='Steepest descent', InterpMethod='1d Linear Interpolation')
-        SnapMat = spod.shiftedPOD_algorithm()
-        toc = time.perf_counter()
-        print(f"Time consumption in solving sPOD : {toc - tic:0.4f} seconds")
-        # Plots
-        PlotFlow(Model='sPOD', SnapMat=SnapMat, X=X, t=t, NumVar=NumVar)
-    elif method == 'srPCA':
-        tic = time.perf_counter()
-        srpca = srPCA(SnapShotMatrix=SnapShotMatrix, delta=delta, X=X, t=t, Iter=8,
-                      RandomizedSVD=True, InterpMethod='1d Linear Interpolation')
-        SnapMat = srpca.ShiftedRPCA_algorithm()
-        toc = time.perf_counter()
-        print(f"Time consumption in solving srPCA : {toc - tic:0.4f} seconds")
-        # Plots
-        PlotFlow(Model='srPCA', SnapMat=SnapMat, X=X, t=t, NumVar=NumVar)
+    # Save the Snapshot matrix, grid and the time array
+    print('Saving the matrix and the grid data')
+    np.save(impath + 'SnapShotMatrix575.npy', wf.qs)
+    np.save(impath + '1D_Grid.npy', [wf.X, wf.Y])
+    np.save(impath + 'Time.npy', wf.t)
+    np.save(impath + '2D_grid.npy', [wf.X_2D, wf.Y_2D])
+    np.save(impath + 'Shifts575.npy', deltaNew)
+
+#%% Read the data
+SnapShotMatrix = np.load(impath + 'SnapShotMatrix575.npy')
+XY_1D = np.load(impath + '1D_Grid.npy', allow_pickle=True)
+X = XY_1D[0]
+Y = XY_1D[1]
+t = np.load(impath + 'Time.npy')
+XY_2D = np.load(impath + '2D_grid.npy', allow_pickle=True)
+X_2D = XY_2D[0]
+Y_2D = XY_2D[1]
+delta = np.load(impath + 'Shifts575.npy')
+flag = np.size(SnapShotMatrix)
+if flag:
+    print('Primary requirements of the input data for the model reduction framework met')
+else:
+    print('Inconsistent input data for the Model reduction framework')
+    exit()
+print('Matrix and grid data loaded')
+
+#%%
+# Calculate the Interpolation error
+shift_method = 'Lagrange Interpolation'
+tfr = Transforms(X, NumConsVar=1)
+tfr.MatList = []
+tfr.RevMatList = []
+for k in range(3):
+    tfr.MatList.append(tfr.TransMat(delta[k], X, order=5))
+    tfr.RevMatList.append(tfr.TransMat(-delta[k], X, order=5))
+
+T = SnapShotMatrix[0:np.size(X), :]
+Frame0View = tfr.revshift1D(T, delta[0], ShiftMethod=shift_method, frame=0)
+Frame1View = tfr.revshift1D(T, delta[1], ShiftMethod=shift_method, frame=1)
+Frame2View = tfr.revshift1D(T, delta[2], ShiftMethod=shift_method, frame=2)
+Lab0View = tfr.shift1D(Frame0View, delta[0], ShiftMethod=shift_method, frame=0)
+Lab1View = tfr.shift1D(Frame1View, delta[1], ShiftMethod=shift_method, frame=1)
+Lab2View = tfr.shift1D(Frame2View, delta[2], ShiftMethod=shift_method, frame=2)
+
+res = Lab2View - T
+IntErr = np.linalg.norm(res) / np.linalg.norm(T)
+print(IntErr)
+
+#%%
+# MODEL REDUCTION FRAMEWORK
+# Method chosen for model reduction
+method = None
+Nx = int(np.size(X))
+Ny = int(np.size(Y))
+Nt = int(np.size(t))
+if method == 'SnapShotPOD':
+    T = SnapShotMatrix[:Nx, :]
+    S = SnapShotMatrix[Nx:, :]
+    tic = time.perf_counter()
+    SnapMat = SnapShotPOD(U=SnapShotMatrix, X=X, t=t, NumModes=1)
+    toc = time.perf_counter()
+    print(f"Time consumption in solving Snapshot POD : {toc - tic:0.4f} seconds")
+    # Error norms
+    TMod = SnapMat[:Nx, :]
+    SMod = SnapMat[Nx:, :]
+    print(f"Residual Error norm for T : {np.linalg.norm(T - TMod) / np.linalg.norm(T):0.7f}")
+    print(f"Residual Error norm for S : {np.linalg.norm(S - SMod) / np.linalg.norm(S):0.7f}")
+    # Plots
+    PlotFlow(Model='SnapShotPOD', SnapMat=SnapMat, X=X, Y=Y, X_2D=X_2D, Y_2D=Y_2D, t=t, d=Dimension)
+elif method == 'FTR':
+    T = SnapShotMatrix[:Nx, :]
+    S = SnapShotMatrix[Nx:, :]
+    tic = time.perf_counter()
+    ftr = FTR(SnapShotMatrix=SnapShotMatrix, X=X, t=t, RandomizedSVD=True)
+    SnapMat = ftr.FtrAlg(CutoffRank=10, PerformSVD=True)
+    toc = time.perf_counter()
+    print(f"Time consumption in solving FTR : {toc - tic:0.4f} seconds")
+    # Error norms
+    TMod = SnapMat[:Nx, :]
+    SMod = SnapMat[Nx:, :]
+    print(f"Residual Error norm for T : {np.linalg.norm(T - TMod) / np.linalg.norm(T):0.7f}")
+    print(f"Residual Error norm for S : {np.linalg.norm(S - SMod) / np.linalg.norm(S):0.7f}")
+    # Plots
+    PlotFlow(Model='FTR', SnapMat=SnapMat, X=X, Y=Y, X_2D=X_2D, Y_2D=Y_2D, t=t, d=Dimension)
+elif method == 'sPOD':
+    T = SnapShotMatrix[:Nx, :]
+    S = SnapShotMatrix[Nx:, :]
+    tic = time.perf_counter()
+    ModesPerFrame = np.array([1, 2, 1])
+    spod = sPOD(SnapShotMatrix=T, delta=delta, X=X, t=t, Iter=100, ModesPerFrame=ModesPerFrame,
+                RandomizedSVD=True, GradAlg='Steepest descent', InterpMethod='1d Linear Interpolation')
+    SnapMat = spod.shiftedPOD_algorithm()
+    toc = time.perf_counter()
+    print(f"Time consumption in solving sPOD : {toc - tic:0.4f} seconds")
+    # Plots
+    PlotFlow(Model='sPOD', SnapMat=SnapMat, X=X, Y=Y, X_2D=X_2D, Y_2D=Y_2D, t=t, d=Dimension)
+elif method == 'srPCA':
+
+    pass

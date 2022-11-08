@@ -88,7 +88,7 @@ class Transforms:
     # Lagrange interpolation
     #########################
     @staticmethod
-    def TransMat(delta, X):
+    def TransMat(delta, X, order=5):
         from numpy import floor
 
         dx = X[1] - X[0]
@@ -97,10 +97,7 @@ class Transforms:
         Mat = []
         for shift in delta:
             # we assume periodicity here
-            if shift > X[-1]:
-                shift = shift - X[-1]
-            elif shift < 0:
-                shift = shift + X[-1]
+            shift = np.mod(shift, X[-1] + dx)  # if periodicity is assumed
 
             ''' interpolation scheme        lagrange_idx(x)= (x-x_{idx-1})/(x_idx - x_0)+
             -1      0   x    1       2                    ...+(x-x_{idx+2})/(x_idx - x_{idx+2})
@@ -112,24 +109,65 @@ class Transforms:
             # shift is close to some discrete index:
             idx_0 = floor(shift / dx)
             # save all neighbours
-            idx_list = np.asarray([idx_0 - 1, idx_0, idx_0 + 1, idx_0 + 2], dtype=np.int32)
+            if order == 5:
+                idx_list = np.asarray([idx_0 - 2, idx_0 - 1, idx_0, idx_0 + 1, idx_0 + 2, idx_0 + 3], dtype=np.int32)
+            elif order == 3:
+                idx_list = np.asarray([idx_0 - 1, idx_0, idx_0 + 1, idx_0 + 2], dtype=np.int32)
+            elif order == 1:
+                idx_list = np.asarray([idx_0, idx_0 + 1], dtype=np.int32)
+            else:
+                assert (False), "please choose correct order for interpolation"
 
-            if idx_list[0] < 0: idx_list[0] += Nx
-            if idx_list[3] > Nx - 1: idx_list[3] -= Nx
+            idx_list = np.asarray([np.mod(idx, Nx) for idx in idx_list])  # assumes periodicity
             # subdiagonals needed if point is on other side of domain
             idx_subdiags_list = idx_list - Nx
             # compute the distance to the index
             delta_idx = shift / dx - idx_0
             # compute the 4 langrage basis elements
-            lagrange_coefs = [lagrange(delta_idx, [-1, 0, 1, 2], j) for j in range(4)]
+            if order == 5:
+                lagrange_coefs = [lagrange(delta_idx, [-2, -1, 0, 1, 2, 3], j) for j in range(6)]
+            elif order == 3:
+                lagrange_coefs = [lagrange(delta_idx, [-1, 0, 1, 2], j) for j in range(4)]
+            elif order == 1:
+                lagrange_coefs = [lagrange(delta_idx, [0, 1], j) for j in range(2)]
+            else:
+                assert (False), "please choose correct order for interpolation"
             # for the subdiagonals as well
             lagrange_coefs = lagrange_coefs + lagrange_coefs
 
             # band diagonals for the shift matrix
             offsets = np.concatenate([idx_list, idx_subdiags_list])
-            diagonals = [np.ones(Nx) * Lj for Lj in lagrange_coefs]
+            diagonals = [np.ones(Nx + 1) * Lj for Lj in lagrange_coefs]
 
             Mat.append(diags(diagonals, offsets, shape=[Nx, Nx]))
+
+
+
+
+
+
+
+            # # shift is close to some discrete index:
+            # idx_0 = floor(shift / dx)
+            # # save all neighbours
+            # idx_list = np.asarray([idx_0 - 1, idx_0, idx_0 + 1, idx_0 + 2], dtype=np.int32)
+            #
+            # if idx_list[0] < 0: idx_list[0] += Nx
+            # if idx_list[3] > Nx - 1: idx_list[3] -= Nx
+            # # subdiagonals needed if point is on other side of domain
+            # idx_subdiags_list = idx_list - Nx
+            # # compute the distance to the index
+            # delta_idx = shift / dx - idx_0
+            # # compute the 4 langrage basis elements
+            # lagrange_coefs = [lagrange(delta_idx, [-1, 0, 1, 2], j) for j in range(4)]
+            # # for the subdiagonals as well
+            # lagrange_coefs = lagrange_coefs + lagrange_coefs
+            #
+            # # band diagonals for the shift matrix
+            # offsets = np.concatenate([idx_list, idx_subdiags_list])
+            # diagonals = [np.ones(Nx) * Lj for Lj in lagrange_coefs]
+            #
+            # Mat.append(diags(diagonals, offsets, shape=[Nx, Nx]))
 
         return Mat
 

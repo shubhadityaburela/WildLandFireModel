@@ -1,12 +1,7 @@
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
 from transforms import Transforms
-
-'''
-This class perform Shifted robust PCA given:
-Snapshot Matrix
-transforms (Shifts)
-'''
+import matplotlib.pyplot as plt
 
 
 class srPCA:
@@ -44,17 +39,19 @@ class srPCA:
         self.q_tilde = np.zeros_like(self.qks)
         self.Y = np.zeros((self.qs.shape[0], self.qs.shape[1]), dtype=float)
         self.E = np.zeros_like(self.Y)
+        self.rank = np.zeros(self.__NumComovingFrames, dtype=int)
 
     def ShiftedRPCA_algorithm(self):
         # Initialize the matrices
         self.__Initialize()
 
-        self.__mu = self.__Nx * self.__Nt / (4 * np.sum(np.abs(self.qs[0:self.__Nx, :]))) * 0.0001
+        self.__mu = self.__Nx * self.__Nt / (25 * np.sum(np.abs(self.qs)))
         self.__lamda = 1 / np.sqrt(np.maximum(self.__Nx, self.__Nt))
 
         # Instantiation for the shifts
         tfr = Transforms(self.X, self.__NumConsVar)
-        # Special purpose case for Lagrange Interpolation. We calculate the Shift matrices beforehand to save computational time
+        # Special purpose case for Lagrange Interpolation. We calculate the Shift matrices beforehand to save
+        # computational time
         if self.__InterpMethod == 'Lagrange Interpolation':
             tfr.MatList = []
             tfr.RevMatList = []
@@ -64,50 +61,54 @@ class srPCA:
 
         Rel_err = 1  # Relative error
         it = 0
-        T = self.qs[0:self.__Nx, :]
-        S = self.qs[self.__Nx:self.__NumConsVar * self.__Nx, :]
+        T = self.qs
         # Convergence loop
         while Rel_err > self.__epsilon and it < self.__Iter_max:
-            q_sumGlobal = np.zeros((self.qs.shape[0], self.qs.shape[1]))
+            q_sumGlobal = np.zeros_like(self.qs)
             # Update the respective co-moving frames
             for p in range(self.__NumComovingFrames):
-                q_sum = np.zeros((self.qs.shape[0], self.qs.shape[1]))
+                q_sum = np.zeros_like(self.qs)
                 for k in range(self.__NumComovingFrames):
                     if k != p:
                         q_sum = q_sum + tfr.shift1D(self.qks[k], self.__delta[k], ShiftMethod=self.__InterpMethod, frame=k)
-                q_sum = self.qs - q_sum - self.E + self.Y / self.__mu
+
+                q_sum = self.qs - q_sum + self.Y / self.__mu - self.E
                 self.q_tilde[p] = tfr.revshift1D(q_sum, self.__delta[p], ShiftMethod=self.__InterpMethod, frame=p)
 
                 # Apply singular value thresholding to the self.q_tilde[c]
-                self.q_tilde[p] = self.SVT(self.q_tilde[p], 1 / self.__mu, self.__NumConsVar, self.__Nx)
+                self.q_tilde[p], self.rank[p] = self.SVT(self.q_tilde[p], 1 / self.__mu, self.__NumConsVar, self.__Nx)
 
             # Update the values of self.q_tilde into self.qks
             for p in range(self.__NumComovingFrames):
                 self.qks[p] = self.q_tilde[p]
                 # Sum the contributions for all the co-moving frames
                 q_sumGlobal = q_sumGlobal + tfr.shift1D(self.qks[p], self.__delta[p], ShiftMethod=self.__InterpMethod, frame=p)
-
             # Update the Noise Matrix and the multiplier
             q_E = self.qs - q_sumGlobal + self.Y / self.__mu
             self.E = np.sign(q_E) * np.maximum(np.abs(q_E) - self.__lamda / self.__mu, 0)
             self.Y = self.Y + self.__mu * (self.qs - q_sumGlobal - self.E)
 
             # Calculate the Rel_err for convergence (only based on the temperature variable)
-            TMod = q_sumGlobal[0:self.__Nx, :]
-            SMod = q_sumGlobal[self.__Nx:self.__NumConsVar * self.__Nx, :]
-            ResT = T - TMod
-            ResS = S - SMod
-            ResErrT = np.linalg.norm(ResT) / np.linalg.norm(T)
-            ResErrS = np.linalg.norm(ResS) / np.linalg.norm(S)
-            print(f"Residual Error norm for T : {ResErrT:0.7f}, Iteration : {it}")
-            print(f"Residual Error norm for S : {ResErrS:0.7f}, Iteration : {it}")
+            num = np.sqrt(np.mean(np.linalg.norm(T - q_sumGlobal, 2, axis=1) ** 2))
+            den = np.sqrt(np.mean(np.linalg.norm(T, 2, axis=1) ** 2))
+            ResErrT = num / den
+            print(f"Residual Error norm for T : {ResErrT:0.7f}, Iteration : {it}, Ranks per frame : {self.rank[0]}, "
+                  f"{self.rank[1]}, {self.rank[2]}")
 
             Rel_err = ResErrT
             it += 1  # Advances the number of iterations
 
         SnapMat = []
+        Q = np.zeros_like(self.qs)
         for k in range(self.__NumComovingFrames):
             SnapMat.append(self.qks[k])
+            Q = Q + tfr.shift1D(self.qks[k], self.__delta[k], ShiftMethod=self.__InterpMethod, frame=k)
+
+        [X_grid, t_grid] = np.meshgrid(self.X, self.t)
+        X_grid = X_grid.T
+        t_grid = t_grid.T
+        plt.pcolormesh(X_grid, t_grid, Q)
+        plt.show()
 
         return SnapMat
 
@@ -139,4 +140,4 @@ class srPCA:
 
             qT[start:end, :] = U_k.dot(S_k.dot(VH_k))
 
-        return qT
+        return qT, rank

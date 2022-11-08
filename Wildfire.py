@@ -1,109 +1,112 @@
 from Coefficient_Matrix import CoefficientMatrix
+import matplotlib; matplotlib.use("TkAgg")
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from matplotlib import cm
 import numpy as np
 import math
 
-'''
-This class solves the Convection diffusion reaction equation of the Wildfire model from 
-"https://arxiv.org/abs/2106.11381give"
-'''
-
 
 class Wildfire:
-    def __init__(self, Nxi: int, timesteps: int, Periodicity: str) -> None:
+    def __init__(self, Nxi: int, Neta: int, timesteps: int) -> None:
         # Assertion statements for checking the sanctity of the input variables
-        assert Nxi > 0, f"Please input sensible values for the grid points"
+        assert Nxi > 0, f"Please input sensible values for the X grid points"
+        assert Neta > 0, f"Please input sensible values for the Y grid points"
         assert timesteps >= 0, f"Please input sensible values for time steps"
 
         # First we define the public variables of the class. All the variables with "__" in front are private variables
         self.X = None
+        self.Y = None
         self.t = None
 
+        self.NumConservedVar = 2
+
         # Private variables
-        self.__NumConservedVar = 2
         self.__Lxi = 1000
+        self.__Leta = 1000
         self.__Nxi = Nxi
+        self.__Neta = Neta
         self.__timesteps = timesteps
-        self.__periodicity = Periodicity
-        self.__cfl = 0.05
+        self.__cfl = 1.0
 
         # Order of accuracy for the derivative matrices of the first and second order
-        self.__firstderivativeOrder = 6
-        self.__secondderivativeOrder = 6
+        self.__firstderivativeOrder = "5thOrder"
 
         # Dimensional constants used in the model
         self.__thermaldiffusivity = 0.2136
         self.__preexponentialfactor = 0.1625
-        self.__windspeed = 0
+        self.__windspeed_x = 0
+        self.__windspeed_y = 0
         self.__temperaturerisepersecond = 187.93
         self.__scaledheattransfercoefficient = 4.8372e-5
-        self.__beta = 558.49
+        self.__beta = 575
         self.__Tambient = 300
         self.__speedofsoundsquare = 1
 
         # Sparse matrices of the first and second order
-        self.__D_1 = None
-        self.__D_2 = None
+        self.Mat = None
 
         # Concatenated data structure for the conserved variables T and S for all time steps
-        self.qs = np.zeros((self.__NumConservedVar * self.__Nxi, self.__timesteps), dtype=float)
-
-    # Getter and Setter functions
-    # For this particular example the only getter and setter function required is for setting the wind speed
-    # which switches on the convection in the process
-    @property
-    def WindSpeed(self):
-        print('You are trying to get the current value of wind speed')
-        return self.__windspeed
-
-    @WindSpeed.setter
-    def WindSpeed(self, windspeed):
-        self.__windspeed = windspeed
-        print('You have successfully set the value of wind speed')
+        self.qs = []
 
     def solver(self):
         ########################################################
         # INITIAL CONDITIONS
-        dx, dt, q = self.__InitialConditions()
+        dx, dy, dt, q = self.__InitialConditions()
 
         # SOLVER
-        self.__TimeIntegration(dx, dt, q)  # The results of the simulation are stored in 'self.qs'
+        self.__TimeIntegration(dx, dy, dt, q)  # The results of the simulation are stored in 'self.qs'
+
+        # SOLUTION RESHAPING FOR MODEL ORDER REDUCTION
+        self.qs = np.transpose(np.squeeze(self.qs).reshape((self.__timesteps, -1), order="F"))
         ########################################################
 
     # Private function for this class
     def __InitialConditions(self):
-        # Checking the periodicity of the grid
-        if self.__periodicity == 'Periodic':
-            self.X = np.linspace(0, self.__Lxi, self.__Nxi)
-        elif self.__periodicity == 'NonPeriodic':
-            self.X = np.linspace(0, self.__Lxi, self.__Nxi)
-        else:
-            print('Please select Periodic or NonPeriodic accordingly')
-            exit()
-
-        # Construct the grid
+        self.X = np.arange(1, self.__Nxi + 1) * self.__Lxi / self.__Nxi
         dx = self.X[1] - self.X[0]
-        dt = dx * self.__cfl / math.sqrt(self.__speedofsoundsquare)
+
+        if self.__Neta == 1:
+            self.Y = 0
+            dy = 1
+        else:
+            self.Y = np.arange(1, self.__Neta + 1) * self.__Leta / self.__Neta
+            dy = self.Y[1] - self.Y[0]
+
+        dt = (np.sqrt(dx ** 2 + dy ** 2)) * self.__cfl / math.sqrt(self.__speedofsoundsquare)
         self.t = dt * np.arange(self.__timesteps)
 
+        self.X_2D, self.Y_2D = np.meshgrid(self.X, self.Y)
+        self.X_2D = np.transpose(self.X_2D)
+        self.Y_2D = np.transpose(self.Y_2D)
+
         # Select the correct Initial conditions
-        T = 1200 * np.exp(-((self.X - self.__Lxi / 2) ** 2) / 200)
-        S = np.ones(self.__Nxi)
+        if self.__Neta == 1:
+            T = 1200 * np.exp(-((self.X_2D - self.__Lxi / 2) ** 2) / 200)
+            S = np.ones_like(T)
+        else:
+            T = 1200 * np.exp(-(((self.X_2D - self.__Lxi / 2) ** 2) / 200 + ((self.Y_2D - self.__Leta / 2) ** 2) / 200))
+            S = np.ones_like(T)
 
         # Arrange the values of T and S in 'q'
+        NN = self.__Nxi * self.__Neta
+        T = np.reshape(T, newshape=NN, order="F")
+        S = np.reshape(S, newshape=NN, order="F")
         q = np.array([T, S]).T
 
-        return dx, dt, q
+        return dx, dy, dt, q
 
     # Private function for this class
-    def __TimeIntegration(self, dx, dt, q):
+    def __TimeIntegration(self, dx, dy, dt, q):
         # Creating the system matrices. The class for the creation of Coefficient matrix is created separately
         # as they are of more general use for a wide variety of problems
+        self.Mat = CoefficientMatrix(orderDerivative=self.__firstderivativeOrder, Nxi=self.__Nxi,
+                                     Neta=self.__Neta, periodicity='Periodic', dx=dx, dy=dy)
 
-        # For the non-periodic case do specify the BlockUL and BlockBR matrices
-        self.__D_1 = CoefficientMatrix(derivative=1, orderDerivative=self.__firstderivativeOrder, N=self.__Nxi,
-                                       periodicity=self.__periodicity, BlockUL=None, BlockBR=None).D / dx
-        self.__D_2 = CoefficientMatrix(derivative=2, orderDerivative=self.__secondderivativeOrder, N=self.__Nxi,
-                                       periodicity=self.__periodicity, BlockUL=None, BlockBR=None).D / dx ** 2
+        plt.ion()
+        fig = plt.figure()
+        ax = fig.add_subplot(111, projection='3d')
 
         # Time loop
         for n in range(self.__timesteps):
@@ -111,7 +114,18 @@ class Wildfire:
             q = self.__RK4(q, dt, 0)
 
             # Store the values in the 'self.qs' for all the time steps successively
-            self.qs[:, n] = np.concatenate([q[:, 0], q[:, 1]]).T
+            T = np.reshape(q[:, 0].T, newshape=[self.__Nxi, self.__Neta], order="F")
+            S = np.reshape(q[:, 1].T, newshape=[self.__Nxi, self.__Neta], order="F")
+            self.qs.append([T, S])
+
+            # update plot values
+            if self.__Neta != 1:
+                ax.plot_surface(self.X_2D, self.Y_2D, S, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                # ax.contourf(self.X_2D, self.Y_2D, T, levels=np.linspace(np.min(T), np.max(T), 100, endpoint=True))
+
+                plt.draw()
+                plt.pause(0.02)
+                ax.cla()
 
         pass
 
@@ -128,13 +142,15 @@ class Wildfire:
 
         # Coefficients for the terms in the equation
         Coeff_diff = self.__thermaldiffusivity
-        Coeff_conv = self.__windspeed
+        Coeff_conv_x = self.__windspeed_x
+        Coeff_conv_y = self.__windspeed_y
+
         Coeff_source = self.__temperaturerisepersecond * self.__scaledheattransfercoefficient
         Coeff_arrhenius = self.__temperaturerisepersecond
         Coeff_massfrac = self.__preexponentialfactor
 
-        Tdot = Coeff_diff * self.__D_2.dot(T) - Coeff_conv * self.__D_1.dot(T) - Coeff_source * T + \
-               Coeff_arrhenius * arrhenius_activate * S * np.exp(-self.__beta / (T + epsilon))
+        DT = Coeff_conv_x * self.Mat.Grad_Xi_kron + Coeff_conv_y * self.Mat.Grad_Eta_kron
+        Tdot = Coeff_diff * self.Mat.Laplace.dot(T) - DT.dot(T) - Coeff_source * T + Coeff_arrhenius * arrhenius_activate * S * np.exp(-self.__beta / (T + epsilon))
         Sdot = - Coeff_massfrac * arrhenius_activate * S * np.exp(-self.__beta / (T + epsilon))
 
         qdot = np.array([Tdot, Sdot]).T
@@ -151,3 +167,6 @@ class Wildfire:
         u1 = u0 + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
         return u1
+
+
+

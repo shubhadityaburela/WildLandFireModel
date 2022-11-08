@@ -1,16 +1,10 @@
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
 from transforms import Transforms
-
-'''
-This class performs the shifted POD on the snapshot matrix 
-(https://scholar.google.de/citations?view_op=view_citation&hl=de&user=2LkMDgwAAAAJ&citation_for_view=2LkMDgwAAAAJ:mB3voiENLucC) 
-given:
-'Number of grid points'
-'Time steps'
-'Number of Iterations for the sPOD algorithm'
-'Grid point array'
-'''
+import matplotlib.pyplot as plt
+from scipy.optimize import minimize
+from numpy.random import rand
+from Plots import save_fig
 
 
 class sPOD:
@@ -37,7 +31,7 @@ class sPOD:
         self.__NumComovingFrames = int(np.size(self.__delta, 0))
 
         # Tunable parameters
-        self.__alpha_step = 0.3  # Step size for the steepest descent algorithm
+        self.__alpha_step = 2.0  # Step size for the steepest descent algorithm
 
         # Weights for the domain points inside the computational domain [0, Lxi]
         self.__w = np.ones(self.__NumConsVar * self.__Nx, dtype=int)
@@ -71,7 +65,8 @@ class sPOD:
         self.GradJ2 = np.zeros_like(self.qks, dtype=float)
 
         tfr = Transforms(self.X, self.__NumConsVar)
-        # Special purpose case for Lagrange Interpolation. We calculate the Shift matrices beforehand to save computational time
+        # Special purpose case for Lagrange Interpolation. We calculate the Shift matrices beforehand to
+        # save computational time
         if self.__InterpMethod == 'Lagrange Interpolation':
             tfr.MatList = []
             tfr.RevMatList = []
@@ -79,8 +74,7 @@ class sPOD:
                 tfr.MatList.append(tfr.TransMat(self.__delta[k], self.X))
                 tfr.RevMatList.append(tfr.TransMat(-self.__delta[k], self.X))
 
-        T = self.qs[0:self.__Nx, :]
-        S = self.qs[self.__Nx:self.__NumConsVar * self.__Nx, :]
+        T = self.qs
         # Main loop for the sPOD algorithm
         for n in range(self.__Iter_max):
             self.__enforceConstraint(tfr)
@@ -88,19 +82,32 @@ class sPOD:
             q = np.zeros_like(self.qs)
             for k in range(self.__NumComovingFrames):
                 self.qks[k] = self.qks[k] - self.__alpha_step * self.GradJ2[k]
+
+                U_k, S_k, VH_k = randomized_svd(self.qks[k], n_components=self.__r[k], random_state=None)
+                time_amplitudes = np.matmul(U_k.transpose(), self.qks[k])
+                self.qks[k] = np.matmul(U_k, time_amplitudes)
+
                 q = q + tfr.shift1D(self.qks[k], self.__delta[k], ShiftMethod=self.__InterpMethod, frame=k)
-            TMod = q[0:self.__Nx, :]
-            SMod = q[self.__Nx:self.__NumConsVar * self.__Nx, :]
-            ResT = T - TMod
-            ResS = S - SMod
-            ResErrT = np.linalg.norm(ResT) / np.linalg.norm(T)
-            ResErrS = np.linalg.norm(ResS) / np.linalg.norm(S)
-            print(f"Residual Error norm for T : {ResErrT:0.7f}, Iteration : {n}")
-            print(f"Residual Error norm for S : {ResErrS:0.7f}, Iteration : {n}")
+
+            num = np.sqrt(np.mean(np.linalg.norm(T - q, 2, axis=1) ** 2))
+            den = np.sqrt(np.mean(np.linalg.norm(T, 2, axis=1) ** 2))
+            ResErrT = num / den
+            print(f"Residual Error norm for T : {ResErrT:0.12f}, Iteration : {n}")
 
         SnapMat = []
+        Q = np.zeros_like(self.qs)
         for k in range(self.__NumComovingFrames):
             SnapMat.append(self.qks[k])
+
+            np.save('SnapShotMatrix558_49' + '_frame_' + str(k) + '_NonTrunc' + '.npy', self.qks[k])
+
+            U_k, S_k, VH_k = randomized_svd(self.qks[k], n_components=self.__r[k], random_state=None)
+            time_amplitudes = np.matmul(U_k.transpose(), self.qks[k])
+            self.qks[k] = np.matmul(U_k, time_amplitudes)
+
+            np.save('SnapShotMatrix558_49' + '_frame_' + str(k) + '_Trunc' + '.npy', self.qks[k])
+
+            Q = Q + tfr.shift1D(self.qks[k], self.__delta[k], ShiftMethod=self.__InterpMethod, frame=k)
 
         return SnapMat
 
