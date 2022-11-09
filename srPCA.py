@@ -1,9 +1,65 @@
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
-from transforms import Transforms
+from Transforms import Transforms
 import matplotlib.pyplot as plt
 
+import sys
+sys.path.append('./sPOD/lib/')
 
+from sPOD_tools import shifted_rPCA, shifted_POD, build_all_frames, give_interpolation_error
+from transforms import transforms
+
+
+def srPCA_latest(q, delta, X, t, spod_iter):
+    Nx = np.size(X)
+    Nt = np.size(t)
+    data_shape = [Nx, 1, 1, Nt]
+    dx = X[1] - X[0]
+    L = [X[-1]]
+
+    # Create the transformations
+    trafo_1 = transforms(data_shape, L + dx, shifts=delta[0],
+                         dx=[dx],
+                         use_scipy_transform=False,
+                         interp_order=5)
+    trafo_2 = transforms(data_shape, L + dx, shifts=delta[1],
+                         trafo_type="identity", dx=[dx],
+                         use_scipy_transform=False,
+                         interp_order=5)
+    trafo_3 = transforms(data_shape, L + dx, shifts=delta[2],
+                         dx=[dx],
+                         use_scipy_transform=False,
+                         interp_order=5)
+
+    # Transformation interpolation error
+    interp_err = give_interpolation_error(np.reshape(q, data_shape), trafo_1)
+    print("Transformation interpolation error =  %4.4e " % interp_err)
+
+    # Run the algorithm
+    trafos = [trafo_1, trafo_2, trafo_3]
+    qmat = np.reshape(q, [-1, Nt])
+    [N, M] = np.shape(qmat)
+    mu0 = N * M / (4 * np.sum(np.abs(qmat))) * 0.001
+    lambd0 = 1 / np.sqrt(np.maximum(M, N)) * 100
+    ret = shifted_rPCA(qmat, trafos, nmodes_max=60, eps=1e-16, Niter=spod_iter, use_rSVD=True, mu=mu0, lambd=lambd0,
+                       dtol=1e-4)
+
+    # Extract frames modes and error
+    qframes, qtilde, rel_err = ret.frames, ret.data_approx, ret.rel_err_hist
+    modes_list = [qframes[0].Nmodes, qframes[1].Nmodes, qframes[2].Nmodes]
+    qframe0 = qframes[0].build_field()
+    qframe1 = qframes[1].build_field()
+    qframe2 = qframes[2].build_field()
+
+    # Relative reconstruction error
+    err_full = np.sqrt(np.mean(np.linalg.norm(q - qtilde, 2, axis=1) ** 2)) / \
+               np.sqrt(np.mean(np.linalg.norm(q, 2, axis=1) ** 2))
+    print("Error for full sPOD recons: {}".format(err_full))
+
+    return qframe0, qframe1, qframe2, qtilde
+
+
+########################################################################################################################
 class srPCA:
     def __init__(self, SnapShotMatrix, delta, X, t, Iter: int, RandomizedSVD: bool, InterpMethod: str) -> None:
         # Public Variables for this class
@@ -70,7 +126,8 @@ class srPCA:
                 q_sum = np.zeros_like(self.qs)
                 for k in range(self.__NumComovingFrames):
                     if k != p:
-                        q_sum = q_sum + tfr.shift1D(self.qks[k], self.__delta[k], ShiftMethod=self.__InterpMethod, frame=k)
+                        q_sum = q_sum + tfr.shift1D(self.qks[k], self.__delta[k], ShiftMethod=self.__InterpMethod,
+                                                    frame=k)
 
                 q_sum = self.qs - q_sum + self.Y / self.__mu - self.E
                 self.q_tilde[p] = tfr.revshift1D(q_sum, self.__delta[p], ShiftMethod=self.__InterpMethod, frame=p)
@@ -82,7 +139,8 @@ class srPCA:
             for p in range(self.__NumComovingFrames):
                 self.qks[p] = self.q_tilde[p]
                 # Sum the contributions for all the co-moving frames
-                q_sumGlobal = q_sumGlobal + tfr.shift1D(self.qks[p], self.__delta[p], ShiftMethod=self.__InterpMethod, frame=p)
+                q_sumGlobal = q_sumGlobal + tfr.shift1D(self.qks[p], self.__delta[p], ShiftMethod=self.__InterpMethod,
+                                                        frame=p)
             # Update the Noise Matrix and the multiplier
             q_E = self.qs - q_sumGlobal + self.Y / self.__mu
             self.E = np.sign(q_E) * np.maximum(np.abs(q_E) - self.__lamda / self.__mu, 0)

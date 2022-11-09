@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.utils.extmath import randomized_svd
-from transforms import Transforms
+from Transforms import Transforms
 import matplotlib.pyplot as plt
 from scipy.optimize import minimize
 from numpy.random import rand

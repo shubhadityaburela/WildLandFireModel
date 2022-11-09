@@ -65,16 +65,13 @@ class PlotFlow:
                 self.__sPOD(SnapMat)
             elif Model == 'srPCA':
                 print('srPCA not implemented as of yet')
-        else:
-            if Model == 'FOM':
-                print("Data for 2D plot too large to store and subsequently plot thus go for the real-time plot...")
 
     def __FOM(self, SnapMat):
         T = SnapMat[:self.__Nx, :]
         S = SnapMat[self.__Nx:, :]
 
         # Plot the snapshot matrix for conserved variables for original model
-        fig, ax = plt.subplots(1, 2, num=2)
+        fig, ax = plt.subplots(1, 2, num=1)
         plt.rc('text', usetex=True)
         plt.rc('font', family='serif')
         ax[0].pcolormesh(self.__X_grid, self.__t_grid, T)
@@ -89,7 +86,7 @@ class PlotFlow:
 
         # Plot the singular value decay of the original model based on the (temperature) snapshot matrix
         U, SIG, VH = np.linalg.svd(T)
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(num=2)
         ax.plot(SIG / np.sum(SIG), color="red", marker="o")
         ax.set_xlabel("Number of modes", fontsize=14)
         ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
@@ -100,7 +97,7 @@ class PlotFlow:
         save_fig(filepath=impath + 'SVDecayOriginalModel_T', figure=fig)
 
         U, SIG, VH = np.linalg.svd(S)
-        fig, ax = plt.subplots()
+        fig, ax = plt.subplots(num=3)
         ax.plot(SIG / np.sum(SIG), color="red", marker="o")
         ax.set_xlabel("Number of modes", fontsize=14)
         ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
@@ -116,7 +113,7 @@ class PlotFlow:
         # plot the snapshot matrix for the conserved variables for the snapshot POD model
         T = SnapMat[:self.__Nx, :]
         S = SnapMat[self.__Nx:, :]
-        fig, ax = plt.subplots(1, 2, num=2)
+        fig, ax = plt.subplots(1, 2, num=4)
         plt.rc('text', usetex=True)
         plt.rc('font', family='serif')
         ax[0].pcolormesh(self.__X_grid, self.__t_grid, T)
@@ -135,7 +132,7 @@ class PlotFlow:
         # Plot the snapshot matrix for conserved variables for FTR
         T = SnapMat[:self.__Nx, :]
         S = SnapMat[self.__Nx:, :]
-        fig, ax = plt.subplots(1, 2, num=2)
+        fig, ax = plt.subplots(1, 2, num=5)
         plt.rc('text', usetex=True)
         plt.rc('font', family='serif')
         ax[0].pcolormesh(self.__X_grid, self.__t_grid, T)
@@ -161,7 +158,7 @@ class PlotFlow:
         font1 = {'family': 'serif', 'color': 'blue', 'size': 10}
         font2 = {'family': 'serif', 'color': 'darkred', 'size': 15}
 
-        fig, ax = plt.subplots(1, 3, num=3)
+        fig, ax = plt.subplots(1, 3, num=6)
         ax[0].pcolormesh(self.__X_grid, self.__t_grid, T_f1, vmin=self.__vmin_T, vmax=self.__vmax_T)
         ax[0].axis('scaled')
         ax[0].axis('off')
@@ -177,7 +174,7 @@ class PlotFlow:
         fig.tight_layout()
         save_fig(filepath=impath + 'sPOD_Frames_for_Temperature', figure=fig)
 
-        fig, ax = plt.subplots(1, 3, num=3)
+        fig, ax = plt.subplots(1, 3, num=7)
         ax[0].pcolormesh(self.__X_grid, self.__t_grid, S_f1, vmin=self.__vmin_S, vmax=self.__vmax_S)
         ax[0].axis('scaled')
         ax[0].axis('off')
@@ -244,3 +241,33 @@ class PlotFlow:
         plt.show()
 
         pass
+
+
+def Plot_srPCA_1D(q, q1_spod_frame, q2_spod_frame, q3_spod_frame, qtilde, X, Y, t):
+
+    [Xgrid, Tgrid] = np.meshgrid(X, t)
+    Xgrid = Xgrid.T
+    Tgrid = Tgrid.T
+
+    qmin = np.min(q)
+    qmax = np.max(q)
+    fig, axs = plt.subplots(1, 4, num=8, sharey=True, figsize=(15, 6))
+    # 1. frame
+    axs[0].pcolormesh(Xgrid, Tgrid, q1_spod_frame, vmin=qmin, vmax=qmax)
+    axs[0].set_yticks([], [])
+    axs[0].set_xticks([], [])
+    # 2. frame
+    axs[1].pcolormesh(Xgrid, Tgrid, q2_spod_frame, vmin=qmin, vmax=qmax)
+    axs[1].set_yticks([], [])
+    axs[1].set_xticks([], [])
+    # 3. frame
+    axs[2].pcolormesh(Xgrid, Tgrid, q3_spod_frame, vmin=qmin, vmax=qmax)
+    axs[2].set_yticks([], [])
+    axs[2].set_xticks([], [])
+    # Reconstruction
+    axs[3].pcolormesh(Xgrid, Tgrid, qtilde, vmin=qmin, vmax=qmax)
+    axs[3].set_yticks([], [])
+    axs[3].set_xticks([], [])
+    plt.tight_layout()
+
+    save_fig(filepath=impath + "frames_sPOD", figure=fig)

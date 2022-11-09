@@ -1,11 +1,12 @@
+import Plots
 from Wildfire import Wildfire
 from Shifts import Shifts
 from FTR import FTR
 from sPOD import sPOD
 from SnapPOD import SnapShotPOD
-from srPCA import srPCA
-from Plots import PlotFlow
-from transforms import Transforms
+from srPCA import srPCA_latest
+from Plots import PlotFlow, Plot_srPCA_1D
+from Transforms import Transforms
 import time
 import numpy as np
 import sys
@@ -21,7 +22,7 @@ solve_wildfire = True
 Dimension = "1D"
 if solve_wildfire:
     tic = time.process_time()
-    wf = Wildfire(Nxi=1000, Neta=1 if Dimension == "1D" else 1000, timesteps=100)
+    wf = Wildfire(Nxi=1000, Neta=1 if Dimension == "1D" else 1000, timesteps=1000)
     wf.solver()
     toc = time.process_time()
     print(f"Time consumption in solving wildfire PDE : {toc - tic:0.4f} seconds")
@@ -64,31 +65,9 @@ else:
 print('Matrix and grid data loaded')
 
 #%%
-# Calculate the Interpolation error
-shift_method = 'Lagrange Interpolation'
-tfr = Transforms(X, NumConsVar=1)
-tfr.MatList = []
-tfr.RevMatList = []
-for k in range(3):
-    tfr.MatList.append(tfr.TransMat(delta[k], X, order=5))
-    tfr.RevMatList.append(tfr.TransMat(-delta[k], X, order=5))
-
-T = SnapShotMatrix[0:np.size(X), :]
-Frame0View = tfr.revshift1D(T, delta[0], ShiftMethod=shift_method, frame=0)
-Frame1View = tfr.revshift1D(T, delta[1], ShiftMethod=shift_method, frame=1)
-Frame2View = tfr.revshift1D(T, delta[2], ShiftMethod=shift_method, frame=2)
-Lab0View = tfr.shift1D(Frame0View, delta[0], ShiftMethod=shift_method, frame=0)
-Lab1View = tfr.shift1D(Frame1View, delta[1], ShiftMethod=shift_method, frame=1)
-Lab2View = tfr.shift1D(Frame2View, delta[2], ShiftMethod=shift_method, frame=2)
-
-res = Lab2View - T
-IntErr = np.linalg.norm(res) / np.linalg.norm(T)
-print(IntErr)
-
-#%%
 # MODEL REDUCTION FRAMEWORK
 # Method chosen for model reduction
-method = None
+method = "srPCA"
 Nx = int(np.size(X))
 Ny = int(np.size(Y))
 Nt = int(np.size(t))
@@ -134,5 +113,17 @@ elif method == 'sPOD':
     # Plots
     PlotFlow(Model='sPOD', SnapMat=SnapMat, X=X, Y=Y, X_2D=X_2D, Y_2D=Y_2D, t=t, d=Dimension)
 elif method == 'srPCA':
+    if Dimension == '1D':
+        T = SnapShotMatrix[:Nx, :]
+        S = SnapShotMatrix[Nx:, :]
+        tic = time.perf_counter()
+        qframe0, qframe1, qframe2, qtilde = srPCA_latest(q=T, delta=delta, X=X, t=t, spod_iter=50)
+        toc = time.perf_counter()
+        print(f"Time consumption in solving srPCA : {toc - tic:0.4f} seconds")
+        # Plots
+        Plot_srPCA_1D(T, qframe0, qframe1, qframe2, qtilde, X, Y, t)
+    else:
+        print("2D shifted POD not implemented yet")
+        exit()
 
     pass

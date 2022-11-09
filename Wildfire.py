@@ -59,7 +59,8 @@ class Wildfire:
         self.__TimeIntegration(dx, dy, dt, q)  # The results of the simulation are stored in 'self.qs'
 
         # SOLUTION RESHAPING FOR MODEL ORDER REDUCTION
-        self.qs = np.transpose(np.squeeze(self.qs).reshape((self.__timesteps, -1), order="F"))
+        self.qs = np.transpose(np.squeeze(self.qs).reshape((self.__timesteps, -1),
+                                                           order="F" if self.__Neta != 1 else "C"))
         ########################################################
 
     # Private function for this class
@@ -104,9 +105,10 @@ class Wildfire:
         self.Mat = CoefficientMatrix(orderDerivative=self.__firstderivativeOrder, Nxi=self.__Nxi,
                                      Neta=self.__Neta, periodicity='Periodic', dx=dx, dy=dy)
 
-        plt.ion()
-        fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
+        if self.__Neta != 1:
+            plt.ion()
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection='3d')
 
         # Time loop
         for n in range(self.__timesteps):
