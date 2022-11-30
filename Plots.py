@@ -352,7 +352,7 @@ def PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', intera
                     ax.set_ylabel(r"$" + str(var_name) + "$")
                     ax.set_title(r"$" + str(var_name) + "_{" + str(n) + "}$")
                     ax.legend()
-                    fig.savefig(immpath + str(var_name) + "_" + str(n))
+                    fig.savefig(immpath + str(var_name) + "_" + str(n), dpi=600, transparent=True)
                     plt.close(fig)
         elif type_plot == "2D":
             immpath = "./plots/srPCA_2D/mesh/"
@@ -371,7 +371,7 @@ def PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', intera
                     fig.supylabel(r"$Y$")
                     fig.supxlabel(r"$X$")
                     fig.suptitle(r"$" + str(var_name) + "_{" + str(n) + "}$")
-                    fig.savefig(immpath + str(var_name) + "_" + str(n))
+                    fig.savefig(immpath + str(var_name) + "_" + str(n), dpi=600, transparent=True)
                     plt.close(fig)
 
         fps = 1

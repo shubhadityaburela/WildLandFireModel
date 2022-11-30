@@ -134,7 +134,7 @@ elif method == 'srPCA':
         SnapShotMatrix = np.reshape(np.transpose(SnapShotMatrix), newshape=[Nt, 2, Nx, Ny], order="F")
         T = np.transpose(np.reshape(np.squeeze(SnapShotMatrix[:, 0, :, :]), newshape=[Nt, -1], order="F"))
         S = np.transpose(np.reshape(np.squeeze(SnapShotMatrix[:, 1, :, :]), newshape=[Nt, -1], order="F"))
-        solve = True
+        solve = False
         if solve:
             tic = time.perf_counter()
             qframe0, qframe1, qtilde = srPCA_latest_2D(q=T, delta=delta, X=X, Y=Y, t=t, spod_iter=300)
