@@ -3,8 +3,7 @@ from scipy import sparse
 
 
 class CoefficientMatrix:
-    def __init__(self, orderDerivative: str, Nxi: int, Neta: int,
-                 periodicity: str, dx, dy) -> None:
+    def __init__(self, orderDerivative: str, Nxi: int, Neta: int, periodicity: str, dx, dy) -> None:
 
         # Private variables
         self.__Nxi = Nxi
@@ -138,7 +137,7 @@ class CoefficientMatrix:
 
         return D_1 / h
 
-    # In non-periodic cases we need to adjust for the boundary nodes. Therefore we apply BlockUL and BlockBR matrices
+    # In non-periodic cases we need to adjust for the boundary nodes. Therefore, we apply BlockUL and BlockBR matrices
     # for that purpose
     @staticmethod
     def D1_nonperiodic(Coeffs, N, h, BlockUL, BlockBR):

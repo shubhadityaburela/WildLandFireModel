@@ -40,7 +40,7 @@ class Wildfire:
         self.__windspeed_y = 0
         self.__temperaturerisepersecond = 187.93
         self.__scaledheattransfercoefficient = 4.8372e-5
-        self.__beta = 575
+        self.__beta = 558.49
         self.__Tambient = 300
         self.__speedofsoundsquare = 1
 
@@ -108,7 +108,8 @@ class Wildfire:
         if self.__Neta != 1:
             plt.ion()
             fig = plt.figure()
-            ax = fig.add_subplot(111, projection='3d')
+            ax = fig.add_subplot(111)  # , projection='3d')
+            # rad = np.load('data/Shifts558_49.npy')
 
         # Time loop
         for n in range(self.__timesteps):
@@ -116,19 +117,21 @@ class Wildfire:
             q = self.__RK4(q, dt, 0)
 
             # Store the values in the 'self.qs' for all the time steps successively
-            T = np.reshape(q[:, 0].T, newshape=[self.__Nxi, self.__Neta], order="F")
-            S = np.reshape(q[:, 1].T, newshape=[self.__Nxi, self.__Neta], order="F")
+            T = np.reshape(q[:, 0], newshape=[self.__Nxi, self.__Neta], order="F")
+            S = np.reshape(q[:, 1], newshape=[self.__Nxi, self.__Neta], order="F")
             self.qs.append([T, S])
 
             # update plot values
             if self.__Neta != 1:
-                ax.plot_surface(self.X_2D, self.Y_2D, S, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-                # ax.contourf(self.X_2D, self.Y_2D, T, levels=np.linspace(np.min(T), np.max(T), 100, endpoint=True))
+                print('Time step: ', n)
 
+                # ax.plot_surface(self.X_2D, self.Y_2D, S, cmap=cm.coolwarm, linewidth=0, antialiased=False)
+                ax.contourf(self.X_2D, self.Y_2D, S, levels=np.linspace(np.min(S), np.max(S), 100, endpoint=True))
+                # # ax.add_patch(plt.Circle((self.__Lxi // 2, self.__Leta // 2), rad[0, 0], fill=False))
+                ax.set_aspect('equal')
                 plt.draw()
                 plt.pause(0.02)
                 ax.cla()
-
         pass
 
     # Private function for this class

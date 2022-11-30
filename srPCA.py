@@ -2,15 +2,18 @@ import numpy as np
 from sklearn.utils.extmath import randomized_svd
 from Transforms import Transforms
 import matplotlib.pyplot as plt
+from matplotlib import cm
+from Plots import save_fig
 
 import sys
+import os
 sys.path.append('./sPOD/lib/')
 
 from sPOD_tools import shifted_rPCA, shifted_POD, build_all_frames, give_interpolation_error
 from transforms import transforms
 
 
-def srPCA_latest(q, delta, X, t, spod_iter):
+def srPCA_latest_1D(q, delta, X, t, spod_iter):
     Nx = np.size(X)
     Nt = np.size(t)
     data_shape = [Nx, 1, 1, Nt]
@@ -51,12 +54,248 @@ def srPCA_latest(q, delta, X, t, spod_iter):
     qframe1 = qframes[1].build_field()
     qframe2 = qframes[2].build_field()
 
+    # Save the frame results when doing large computations
+    impath = "./data/result_srPCA_1D/"
+    os.makedirs(impath, exist_ok=True)
+    np.save(impath + 'q1_frame.npy', qframe0)
+    np.save(impath + 'q2_frame.npy', qframe1)
+    np.save(impath + 'q3_frame.npy', qframe2)
+    np.save(impath + 'qtilde.npy', qtilde)
+    np.save(impath + 'frame_modes.npy', modes_list, allow_pickle=True)
+
     # Relative reconstruction error
     err_full = np.sqrt(np.mean(np.linalg.norm(q - qtilde, 2, axis=1) ** 2)) / \
                np.sqrt(np.mean(np.linalg.norm(q, 2, axis=1) ** 2))
     print("Error for full sPOD recons: {}".format(err_full))
 
     return qframe0, qframe1, qframe2, qtilde
+
+
+def srPCA_latest_2D(q, delta, X, Y, t, spod_iter):
+
+    Nx = np.size(X)
+    Ny = np.size(Y)
+    Nt = np.size(t)
+    X_c = X[-1] // 2
+    Y_c = Y[-1] // 2
+    Q = q
+
+    # Reshape the variable array to suit the dimension of the input for the sPOD
+    q = np.reshape(q, newshape=[Nx, Ny, 1, Nt], order="F")
+
+    # Map the field variable from cartesian to polar coordinate system
+    q_polar, theta_i, r_i = cartesian_to_polar(q, X, Y, t)
+
+    # Shift the axis to prevent solution wrap around while shift operations
+    q_polar, theta_i_shift, r_i_shift = shift_axis(q_polar, theta_i, r_i, xaxis=None, yaxis=None)
+
+    # # Check the transformation back and forth error between polar and cartesian coordinates (Checkpoint)
+    # q_cartesian = polar_to_cartesian(q_polar, X, Y, theta_i, r_i, X_c, Y_c, t)
+    # res = q - q_cartesian
+    # err = np.linalg.norm(np.reshape(res, -1)) / np.linalg.norm(np.reshape(q, -1))
+    # print("Transformation back and forth error (cartesian - polar - cartesian) =  %4.4e " % err)
+
+    data_shape = [Nx, Ny, 1, Nt]
+    dr = r_i[1] - r_i[0]
+    dtheta = theta_i[1] - theta_i[0]
+    d_del = np.asarray([dr, dtheta])
+    L = np.asarray([r_i[-1], theta_i[-1]])
+
+    # Create the transformations
+    trafo_1 = transforms(data_shape, L + d_del, shifts=delta[0],
+                         dx=d_del,
+                         use_scipy_transform=False)
+    trafo_2 = transforms(data_shape, L + d_del, shifts=delta[1],
+                         trafo_type="identity", dx=d_del,
+                         use_scipy_transform=False)
+
+    # Check the transformation interpolation error
+    qshift = trafo_1.reverse(q_polar)
+    qshiftreverse = trafo_1.apply(trafo_1.reverse(q_polar))
+    res = q_polar - qshiftreverse
+    err = np.linalg.norm(np.reshape(res, -1)) / np.linalg.norm(np.reshape(q_polar, -1))
+    print("Transformation interpolation error =  %4.4e " % err)
+
+    # Apply srPCA on the data
+    transform_list = [trafo_1, trafo_2]
+    qmat = np.reshape(q_polar, [-1, Nt])
+    mu = np.prod(np.size(qmat, 0)) / (4 * np.sum(np.abs(qmat))) * 0.1
+    lambd = 1 / np.sqrt(np.max([Nx, Ny]))
+    ret = shifted_rPCA(qmat, transform_list, nmodes_max=100, eps=1e-4, Niter=spod_iter, use_rSVD=True, mu=mu, lambd=lambd)
+    qframes, qtilde, rel_err = ret.frames, ret.data_approx, ret.rel_err_hist
+
+    # Deduce the frames
+    modes_list = [qframes[0].Nmodes, qframes[1].Nmodes]
+    q_frame_1 = np.reshape(qframes[0].build_field(), newshape=data_shape)
+    q_frame_2 = np.reshape(qframes[1].build_field(), newshape=data_shape)
+    qtilde = np.reshape(qtilde, newshape=data_shape)
+
+    # Shift the transformed polar data to cartesian grid to visualize
+    q_frame_1_cart = polar_to_cartesian(q_frame_1, X, Y, theta_i, r_i, X_c, Y_c, t)
+    q_frame_2_cart = polar_to_cartesian(q_frame_2, X, Y, theta_i, r_i, X_c, Y_c, t)
+    qtilde_cart = polar_to_cartesian(qtilde, X, Y, theta_i, r_i, X_c, Y_c, t)
+
+    # Save the frame results when doing large computations
+    impath = "./data/result_srPCA_2D/"
+    os.makedirs(impath, exist_ok=True)
+    np.save(impath + 'q1_frame.npy', q_frame_1_cart)
+    np.save(impath + 'q2_frame.npy', q_frame_2_cart)
+    np.save(impath + 'qtilde.npy', qtilde_cart)
+    np.save(impath + 'frame_modes.npy', modes_list, allow_pickle=True)
+
+    # Relative reconstruction error for sPOD
+    res = q - qtilde_cart
+    err_full = np.linalg.norm(np.reshape(res, -1)) / np.linalg.norm(np.reshape(q, -1))
+    print("Error for full sPOD recons: {}".format(err_full))
+
+    # Relative reconstruction error for POD
+    U, S, VT = randomized_svd(Q, n_components=sum(modes_list), random_state=None)
+    Q_POD = U.dot(np.diag(S).dot(VT))
+    err_full = np.linalg.norm(Q - Q_POD) / np.linalg.norm(Q)
+    print("Error for full POD recons: {}".format(err_full))
+
+    return q_frame_1_cart, q_frame_2_cart, qtilde_cart
+
+
+def cartesian_to_polar(cartesian_data, X, Y, t):
+
+    Nx = np.size(X)
+    Ny = np.size(Y)
+    Nt = np.size(t)
+    X_grid, Y_grid = np.meshgrid(X, Y)
+    X_c = X[-1] // 2
+    Y_c = Y[-1] // 2
+    polar_data = np.zeros_like(cartesian_data)
+
+    # Method 1 seems to run into problems of coordinate ordering (while correcting look at the
+    # 'F' and 'C' ordering problem)
+
+    X_new = X_grid - X_c  # Shift the origin to the center of the image
+    Y_new = Y_grid - Y_c
+    r = np.sqrt(X_new ** 2 + Y_new ** 2).flatten()  # polar coordinate r
+    theta = np.arctan2(Y_new, X_new).flatten()  # polar coordinate theta
+
+    # Make a regular (in polar space) grid based on the min and max r & theta
+    r_i = np.linspace(np.min(r), np.max(r), Nx)
+    theta_i = np.linspace(np.min(theta), np.max(theta), Ny)
+    theta_grid, r_grid = np.meshgrid(theta_i, r_i)
+
+    # Project the r and theta grid back into cartesian coordinates
+    xi, yi = r_grid * np.cos(theta_grid), r_grid * np.sin(theta_grid)
+    xi = xi + X_c  # Shift the origin back to the lower left corner
+    yi = yi + Y_c
+
+    method = 2
+    if method == 1:
+        from scipy.ndimage.interpolation import map_coordinates
+        xi, yi = xi.flatten(), yi.flatten()
+        coords = np.vstack((xi, yi))
+
+        # Reproject the data into polar coordinates
+        for k in range(Nt):
+            data = map_coordinates(cartesian_data[..., 0, k], coords, order=5)
+            data = np.reshape(data, newshape=[Nx, Ny])
+            polar_data[..., 0, k] = data
+    elif method == 2:
+        from scipy.interpolate import griddata
+        # Reproject the data into polar coordinates
+        for k in range(Nt):
+            print(k)
+            data = griddata((X_grid.flatten(), Y_grid.flatten()), cartesian_data[..., 0, k].flatten('F'), (xi, yi), method='nearest')
+            data = np.reshape(data, newshape=[Nx, Ny])
+            polar_data[..., 0, k] = data
+
+    return polar_data, theta_i, r_i
+
+
+def polar_to_cartesian(polar_data, X, Y, theta_i, r_i, X_c, Y_c, t):
+    Nx = len(X)
+    Ny = len(Y)
+    Nt = len(t)
+    cartesian_data = np.zeros_like(polar_data)
+
+    # Method 1 seems to run into problems of coordinate ordering (while correcting look at the
+    # 'F' and 'C' ordering problem)
+
+    method = 2
+    if method == 1:
+        from scipy.ndimage.interpolation import map_coordinates
+        # "X" and "Y" are the numpy arrays with desired cartesian coordinates, thus creating a grid
+        X_grid, Y_grid = np.meshgrid(X, Y)
+
+        # We have the "X" and "Y" coordinates of each point in the output plane thus we calculate their corresponding theta and r
+        X_new = X_grid - X_c  # Shift the origin to the center of the image
+        Y_new = Y_grid - Y_c
+        r = np.sqrt(X_new ** 2 + Y_new ** 2).flatten()  # polar coordinate r
+        theta = np.arctan2(Y_new, X_new).flatten()  # polar coordinate theta
+
+        # Negative angles are corrected
+        theta[theta < 0] = 2*np.pi + theta[theta < 0]
+
+        # using the known theta and r steps the coordinates are mapped to those of the data grid
+        dtheta = theta_i[1] - theta_i[0]
+        dr = r_i[1] - r_i[0]
+        theta = theta / dtheta
+        r = r / dr
+
+        # An array of polar coordinates is created
+        coords = np.vstack((theta, r))
+
+        # The data is mapped to the new coordinates
+        for k in range(Nt):
+            data = polar_data[:, :, 0, k]
+            data = np.vstack((data, data[-1, :]))  # To avoid holes in the 360º - 0º boundary
+            data = map_coordinates(data, coords, order=5, mode='constant')
+            data = np.reshape(data, newshape=[Nx, Ny], order="F")
+            cartesian_data[:, :, 0, k] = data
+    elif method == 2:
+        from scipy.interpolate import griddata
+        X_grid, Y_grid = np.meshgrid(X, Y)
+        X_grid, Y_grid = np.transpose(X_grid), np.transpose(Y_grid)
+        # Read the polar mesh
+        theta_grid, r_grid = np.meshgrid(theta_i, r_i)
+
+        # Cartesian equivalent of polar coordinates
+        xi, yi = r_grid * np.cos(theta_grid), r_grid * np.sin(theta_grid)
+        xi = xi + X_c  # Shift the origin back to the lower left corner
+        yi = yi + Y_c
+
+        # Interpolate from polar to cartesian grid
+        for k in range(Nt):
+            print(k)
+            data = polar_data[:, :, 0, k]
+            data = griddata((xi.flatten(), yi.flatten()), data.flatten(), (X_grid, Y_grid), method='nearest')
+            data = np.reshape(data, newshape=[Nx, Ny])
+            cartesian_data[:, :, 0, k] = data
+
+    return cartesian_data
+
+
+def shift_axis(data, x, y, xaxis=None, yaxis=None):
+
+    Nx = len(x)
+    Ny = len(y)
+
+    fracOfdata = 0.5
+
+    if xaxis is None and yaxis is None:
+        x_new = x
+        y_new = y
+        data_new = data
+    elif xaxis == '[-x, x]' and yaxis is None:
+        yaxis = y
+        exit()
+    elif yaxis == '[-y, y]' and xaxis is None:
+        x_new = x
+        k = int(Nx * fracOfdata)
+
+        y_ = - np.flip(y)
+        y_new = np.concatenate((y_[k - 1:-1], y[:k]))
+
+        data_ = np.zeros_like(data)
+        data_new = np.concatenate((data_[k - 1:-1, :], data[:k, :]), axis=0)
+
+    return data_new, x_new, y_new
 
 
 ########################################################################################################################

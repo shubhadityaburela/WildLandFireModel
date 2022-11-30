@@ -141,34 +141,6 @@ class Transforms:
 
             Mat.append(diags(diagonals, offsets, shape=[Nx, Nx]))
 
-
-
-
-
-
-
-            # # shift is close to some discrete index:
-            # idx_0 = floor(shift / dx)
-            # # save all neighbours
-            # idx_list = np.asarray([idx_0 - 1, idx_0, idx_0 + 1, idx_0 + 2], dtype=np.int32)
-            #
-            # if idx_list[0] < 0: idx_list[0] += Nx
-            # if idx_list[3] > Nx - 1: idx_list[3] -= Nx
-            # # subdiagonals needed if point is on other side of domain
-            # idx_subdiags_list = idx_list - Nx
-            # # compute the distance to the index
-            # delta_idx = shift / dx - idx_0
-            # # compute the 4 langrage basis elements
-            # lagrange_coefs = [lagrange(delta_idx, [-1, 0, 1, 2], j) for j in range(4)]
-            # # for the subdiagonals as well
-            # lagrange_coefs = lagrange_coefs + lagrange_coefs
-            #
-            # # band diagonals for the shift matrix
-            # offsets = np.concatenate([idx_list, idx_subdiags_list])
-            # diagonals = [np.ones(Nx) * Lj for Lj in lagrange_coefs]
-            #
-            # Mat.append(diags(diagonals, offsets, shape=[Nx, Nx]))
-
         return Mat
 
 
