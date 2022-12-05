@@ -21,7 +21,7 @@ solve_wildfire = False
 Dimension = "2D"
 if solve_wildfire:
     tic = time.process_time()
-    wf = Wildfire(Nxi=1000, Neta=1 if Dimension == "1D" else 1000, timesteps=200)
+    wf = Wildfire(Nxi=400, Neta=1 if Dimension == "1D" else 400, timesteps=600)
     wf.solver()
     toc = time.process_time()
     print(f"Time consumption in solving wildfire PDE : {toc - tic:0.4f} seconds")
@@ -137,16 +137,20 @@ elif method == 'srPCA':
         solve = False
         if solve:
             tic = time.perf_counter()
-            qframe0, qframe1, qtilde = srPCA_latest_2D(q=T, delta=delta, X=X, Y=Y, t=t, spod_iter=300)
+            qframe0, qframe1, qframe0_lab, qframe1_lab, qtilde, q_POD = srPCA_latest_2D(q=T, delta=delta, X=X, Y=Y,
+                                                                                        t=t, spod_iter=2)
             toc = time.perf_counter()
             print(f"Time consumption in solving 2D srPCA : {toc - tic:0.4f} seconds")
         else:
             impath = "./data/result_srPCA_2D/"
             qframe0 = np.load(impath + 'q1_frame.npy')
             qframe1 = np.load(impath + 'q2_frame.npy')
+            qframe0_lab = np.load(impath + 'q1_frame_lab.npy')
+            qframe1_lab = np.load(impath + 'q2_frame_lab.npy')
             qtilde = np.load(impath + 'qtilde.npy')
+            q_POD = np.load(impath + 'q_POD.npy')
 
         # Plots
         T = np.reshape(T, newshape=[Nx, Ny, 1, Nt], order="F")
-        SnapMat = [T, qframe0, qframe1, qtilde]
-        PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', interactive=False, close_up=True)
+        SnapMat = [T, qframe0, qframe1, qframe0_lab, qframe1_lab, qtilde, q_POD]
+        PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='1D', interactive=True, close_up=False)

@@ -130,18 +130,16 @@ def srPCA_latest_2D(q, delta, X, Y, t, spod_iter):
     q_frame_2 = np.reshape(qframes[1].build_field(), newshape=data_shape)
     qtilde = np.reshape(qtilde, newshape=data_shape)
 
-    # Shift the transformed polar data to cartesian grid to visualize
+    # Transform the frame wise snapshots into lab frame (moving frame)
+    q_frame_1_lab = transform_list[0].apply(q_frame_1)
+    q_frame_2_lab = transform_list[1].apply(q_frame_2)
+
+    # Shift the pre-transformed polar data to cartesian grid to visualize
     q_frame_1_cart = polar_to_cartesian(q_frame_1, X, Y, theta_i, r_i, X_c, Y_c, t)
     q_frame_2_cart = polar_to_cartesian(q_frame_2, X, Y, theta_i, r_i, X_c, Y_c, t)
+    q_frame_1_cart_lab = polar_to_cartesian(q_frame_1_lab, X, Y, theta_i, r_i, X_c, Y_c, t)
+    q_frame_2_cart_lab = polar_to_cartesian(q_frame_2_lab, X, Y, theta_i, r_i, X_c, Y_c, t)
     qtilde_cart = polar_to_cartesian(qtilde, X, Y, theta_i, r_i, X_c, Y_c, t)
-
-    # Save the frame results when doing large computations
-    impath = "./data/result_srPCA_2D/"
-    os.makedirs(impath, exist_ok=True)
-    np.save(impath + 'q1_frame.npy', q_frame_1_cart)
-    np.save(impath + 'q2_frame.npy', q_frame_2_cart)
-    np.save(impath + 'qtilde.npy', qtilde_cart)
-    np.save(impath + 'frame_modes.npy', modes_list, allow_pickle=True)
 
     # Relative reconstruction error for sPOD
     res = q - qtilde_cart
@@ -153,8 +151,20 @@ def srPCA_latest_2D(q, delta, X, Y, t, spod_iter):
     Q_POD = U.dot(np.diag(S).dot(VT))
     err_full = np.linalg.norm(Q - Q_POD) / np.linalg.norm(Q)
     print("Error for full POD recons: {}".format(err_full))
+    q_POD = np.reshape(Q_POD, newshape=[Nx, Ny, 1, Nt], order="F")
 
-    return q_frame_1_cart, q_frame_2_cart, qtilde_cart
+    # Save the frame results when doing large computations
+    impath = "./data/result_srPCA_2D/"
+    os.makedirs(impath, exist_ok=True)
+    np.save(impath + 'q1_frame.npy', q_frame_1_cart)
+    np.save(impath + 'q2_frame.npy', q_frame_2_cart)
+    np.save(impath + 'q1_frame_lab.npy', q_frame_1_cart_lab)
+    np.save(impath + 'q2_frame_lab.npy', q_frame_2_cart_lab)
+    np.save(impath + 'qtilde.npy', qtilde_cart)
+    np.save(impath + 'q_POD.npy', q_POD)
+    np.save(impath + 'frame_modes.npy', modes_list, allow_pickle=True)
+
+    return q_frame_1_cart, q_frame_2_cart, q_frame_1_cart_lab, q_frame_2_cart_lab, qtilde_cart, q_POD
 
 
 def cartesian_to_polar(cartesian_data, X, Y, t):

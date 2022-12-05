@@ -272,7 +272,10 @@ def PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', intera
     q = SnapMat[0]
     qframe0 = SnapMat[1]
     qframe1 = SnapMat[2]
-    qtilde = SnapMat[3]
+    qframe0_lab = SnapMat[3]
+    qframe1_lab = SnapMat[4]
+    qtilde = SnapMat[5]
+    q_POD = SnapMat[6]
 
     Nx = len(X)
     Ny = len(Y)
@@ -293,7 +296,10 @@ def PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', intera
         q = q[s_x:e_x, s_y:e_y, :, :]
         qframe0 = qframe0[s_x:e_x, s_y:e_y, :, :]
         qframe1 = qframe1[s_x:e_x, s_y:e_y, :, :]
+        qframe0_lab = qframe0_lab[s_x:e_x, s_y:e_y, :, :]
+        qframe1_lab = qframe1_lab[s_x:e_x, s_y:e_y, :, :]
         qtilde = qtilde[s_x:e_x, s_y:e_y, :, :]
+        q_POD = q_POD[s_x:e_x, s_y:e_y, :, :]
 
     if interactive:
         if type_plot == "1D":
@@ -301,40 +307,49 @@ def PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', intera
             fig = plt.figure()
             ax = fig.add_subplot(111)
             for n in range(Nt):
-                ax.plot(X, np.squeeze(q[:, Ny // 2, 0, n]), color="green", linestyle="-", label='Actual')
-                ax.plot(X, np.squeeze(qframe0[:, Ny // 2, 0, n]), color="blue", linestyle="--", label='Frame 1')
-                ax.plot(X, np.squeeze(qframe1[:, Ny // 2, 0, n]), color="red", linestyle="--", label='Frame 2')
-                ax.plot(X, np.squeeze(qtilde[:, Ny // 2, 0, n]), color="yellow", linestyle="-.", label='Reconstructed')
-                ax.set_ylim(bottom=min, top=max)
-                ax.set_xlabel(r"$X$")
-                ax.set_ylabel(r"$" + str(var_name) + "$")
-                ax.legend()
-                plt.draw()
-                plt.pause(0.5)
-                ax.cla()
+                if n % 10 == 0:
+                    ax.plot(X, np.squeeze(q[:, Ny // 2, 0, n]), color="green", linestyle="-", label='Actual')
+                    ax.plot(X, np.squeeze(qframe0[:, Ny // 2, 0, n]), color="blue", linestyle="--", label='Frame 1')
+                    ax.plot(X, np.squeeze(qframe1[:, Ny // 2, 0, n]), color="red", linestyle="--", label='Frame 2')
+                    ax.plot(X, np.squeeze(qtilde[:, Ny // 2, 0, n]), color="yellow", linestyle="-.", label='sPOD Recon')
+                    ax.plot(X, np.squeeze(q_POD[:, Ny // 2, 0, n]), color="black", linestyle="-.", label='POD Recon')
+                    ax.set_ylim(bottom=min, top=max)
+                    ax.set_xlabel(r"$X$")
+                    ax.set_ylabel(r"$" + str(var_name) + "$")
+                    ax.legend()
+                    plt.draw()
+                    plt.pause(0.5)
+                    ax.cla()
         elif type_plot == "2D":
             plt.ion()
-            fig, ax = plt.subplots(2, 2, sharey=True, sharex=True)
+            fig, ax = plt.subplots(3, 2, sharey=True, sharex=True)
             for n in range(Nt):
-                ax[0, 0].pcolormesh(X_2D, Y_2D, np.squeeze(q[:, :, 0, n]), vmin=min, vmax=max)
-                ax[0, 0].set_title(r"$q^{actual}$")
-                ax[0, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qtilde[:, :, 0, n]), vmin=min, vmax=max)
-                ax[0, 1].set_title(r"$q^{recon}$")
-                ax[1, 0].pcolormesh(X_2D, Y_2D, np.squeeze(qframe0[:, :, 0, n]), vmin=min, vmax=max)
-                ax[1, 0].set_title(r"$q^{frame 1}$")
-                ax[1, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qframe1[:, :, 0, n]), vmin=min, vmax=max)
-                ax[1, 1].set_title(r"$q^{frame 2}$")
+                if n % 10 == 0:
+                    ax[0, 0].pcolormesh(X_2D, Y_2D, np.squeeze(q[:, :, 0, n]), vmin=min, vmax=max)
+                    ax[0, 0].set_title(r"$q^{actual}$")
+                    ax[0, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qtilde[:, :, 0, n]), vmin=min, vmax=max)
+                    ax[0, 1].set_title(r"$q^{recon}$")
+                    ax[1, 0].pcolormesh(X_2D, Y_2D, np.squeeze(qframe0[:, :, 0, n]), vmin=min, vmax=max)
+                    ax[1, 0].set_title(r"$q^{frame 1}$")
+                    ax[1, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qframe1[:, :, 0, n]), vmin=min, vmax=max)
+                    ax[1, 1].set_title(r"$q^{frame 2}$")
+                    ax[2, 0].pcolormesh(X_2D, Y_2D, np.squeeze(qframe0_lab[:, :, 0, n]), vmin=min, vmax=max)
+                    ax[2, 0].set_title(r"$q^{frame 1}_{lab}$")
+                    ax[2, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qframe1_lab[:, :, 0, n]), vmin=min, vmax=max)
+                    ax[2, 1].set_title(r"$q^{frame 2}_{lab}$")
 
-                fig.supylabel(r"$Y$")
-                fig.supxlabel(r"$X$")
-                fig.suptitle(r"$" + str(var_name) + "_{" + str(n) + "}$")
+                    fig.supylabel(r"$Y$")
+                    fig.supxlabel(r"$X$")
+                    fig.suptitle(r"$" + str(var_name) + "_{" + str(n) + "}$")
 
-                plt.draw()
-                plt.pause(0.5)
-                ax[0, 0].cla()
-                ax[0, 1].cla()
-                ax[1, 0].cla()
-                ax[1, 1].cla()
+                    plt.draw()
+                    plt.pause(0.5)
+                    ax[0, 0].cla()
+                    ax[0, 1].cla()
+                    ax[1, 0].cla()
+                    ax[1, 1].cla()
+                    ax[2, 0].cla()
+                    ax[2, 1].cla()
     else:
         if type_plot == "1D":
             immpath = "./plots/srPCA_2D/cs/"
@@ -346,7 +361,8 @@ def PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', intera
                     ax.plot(X, np.squeeze(q[:, Ny // 2, 0, n]), color="green", linestyle="-", label='Actual')
                     ax.plot(X, np.squeeze(qframe0[:, Ny // 2, 0, n]), color="blue", linestyle="--", label='Frame 1')
                     ax.plot(X, np.squeeze(qframe1[:, Ny // 2, 0, n]), color="red", linestyle="--", label='Frame 2')
-                    ax.plot(X, np.squeeze(qtilde[:, Ny // 2, 0, n]), color="yellow", linestyle="-.", label='Reconstructed')
+                    ax.plot(X, np.squeeze(qtilde[:, Ny // 2, 0, n]), color="yellow", linestyle="-.", label='sPOD Recon')
+                    ax.plot(X, np.squeeze(q_POD[:, Ny // 2, 0, n]), color="black", linestyle="-.", label='POD Recon')
                     ax.set_ylim(bottom=min, top=max)
                     ax.set_xlabel(r"$X$")
                     ax.set_ylabel(r"$" + str(var_name) + "$")
@@ -359,7 +375,7 @@ def PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', intera
             os.makedirs(immpath, exist_ok=True)
             for n in range(Nt):
                 if n % 10 == 0:
-                    fig, ax = plt.subplots(2, 2, sharey=True, sharex=True)
+                    fig, ax = plt.subplots(3, 2, sharey=True, sharex=True)
                     ax[0, 0].pcolormesh(X_2D, Y_2D, np.squeeze(q[:, :, 0, n]), vmin=min, vmax=max)
                     ax[0, 0].set_title(r"$q^{actual}$")
                     ax[0, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qtilde[:, :, 0, n]), vmin=min, vmax=max)
@@ -368,6 +384,10 @@ def PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', intera
                     ax[1, 0].set_title(r"$q^{frame 1}$")
                     ax[1, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qframe1[:, :, 0, n]), vmin=min, vmax=max)
                     ax[1, 1].set_title(r"$q^{frame 2}$")
+                    ax[2, 0].pcolormesh(X_2D, Y_2D, np.squeeze(qframe0_lab[:, :, 0, n]), vmin=min, vmax=max)
+                    ax[2, 0].set_title(r"$q^{frame 1}_{lab}$")
+                    ax[2, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qframe1_lab[:, :, 0, n]), vmin=min, vmax=max)
+                    ax[2, 1].set_title(r"$q^{frame 2}_{lab}$")
                     fig.supylabel(r"$Y$")
                     fig.supxlabel(r"$X$")
                     fig.suptitle(r"$" + str(var_name) + "_{" + str(n) + "}$")

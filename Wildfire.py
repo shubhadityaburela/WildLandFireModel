@@ -23,12 +23,12 @@ class Wildfire:
         self.NumConservedVar = 2
 
         # Private variables
-        self.__Lxi = 1000
-        self.__Leta = 1000
+        self.__Lxi = 200
+        self.__Leta = 200
         self.__Nxi = Nxi
         self.__Neta = Neta
         self.__timesteps = timesteps
-        self.__cfl = 1.0
+        self.__cfl = 0.8
 
         # Order of accuracy for the derivative matrices of the first and second order
         self.__firstderivativeOrder = "5thOrder"
@@ -126,7 +126,7 @@ class Wildfire:
                 print('Time step: ', n)
 
                 # ax.plot_surface(self.X_2D, self.Y_2D, S, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-                ax.contourf(self.X_2D, self.Y_2D, S, levels=np.linspace(np.min(S), np.max(S), 100, endpoint=True))
+                ax.contourf(self.X_2D, self.Y_2D, T, levels=np.linspace(np.min(T), np.max(T), 100, endpoint=True))
                 # # ax.add_patch(plt.Circle((self.__Lxi // 2, self.__Leta // 2), rad[0, 0], fill=False))
                 ax.set_aspect('equal')
                 plt.draw()
