@@ -1,5 +1,6 @@
 from Coefficient_Matrix import CoefficientMatrix
-import matplotlib; matplotlib.use("TkAgg")
+import matplotlib; 
+matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -9,7 +10,7 @@ import math
 
 
 class Wildfire:
-    def __init__(self, Nxi: int, Neta: int, timesteps: int) -> None:
+    def __init__(self, Nxi: int, Neta: int, timesteps: int, select_every_n_timestep: int) -> None:
         # Assertion statements for checking the sanctity of the input variables
         assert Nxi > 0, f"Please input sensible values for the X grid points"
         assert Neta > 0, f"Please input sensible values for the Y grid points"
@@ -23,12 +24,12 @@ class Wildfire:
         self.NumConservedVar = 2
 
         # Private variables
-        self.__Lxi = 200
-        self.__Leta = 200
+        self.__Lxi = 500
+        self.__Leta = 500
         self.__Nxi = Nxi
         self.__Neta = Neta
         self.__timesteps = timesteps
-        self.__cfl = 0.8
+        self.__cfl = 1.0 / np.sqrt(2)
 
         # Order of accuracy for the derivative matrices of the first and second order
         self.__firstderivativeOrder = "5thOrder"
@@ -36,7 +37,7 @@ class Wildfire:
         # Dimensional constants used in the model
         self.__thermaldiffusivity = 0.2136
         self.__preexponentialfactor = 0.1625
-        self.__windspeed_x = 0
+        self.__windspeed_x = 0.2
         self.__windspeed_y = 0
         self.__temperaturerisepersecond = 187.93
         self.__scaledheattransfercoefficient = 4.8372e-5
@@ -50,6 +51,9 @@ class Wildfire:
         # Concatenated data structure for the conserved variables T and S for all time steps
         self.qs = []
 
+        # For sPOD afterwards, select every nth timestep and store
+        self.select_every_n_timestep = select_every_n_timestep
+
     def solver(self):
         ########################################################
         # INITIAL CONDITIONS
@@ -59,8 +63,9 @@ class Wildfire:
         self.__TimeIntegration(dx, dy, dt, q)  # The results of the simulation are stored in 'self.qs'
 
         # SOLUTION RESHAPING FOR MODEL ORDER REDUCTION
-        self.qs = np.transpose(np.squeeze(self.qs).reshape((self.__timesteps, -1),
+        self.qs = np.transpose(np.squeeze(self.qs).reshape((self.__timesteps // self.select_every_n_timestep, -1),
                                                            order="F" if self.__Neta != 1 else "C"))
+        self.t = self.t[::self.select_every_n_timestep]
         ########################################################
 
     # Private function for this class
@@ -70,7 +75,7 @@ class Wildfire:
 
         if self.__Neta == 1:
             self.Y = 0
-            dy = 1
+            dy = 0
         else:
             self.Y = np.arange(1, self.__Neta + 1) * self.__Leta / self.__Neta
             dy = self.Y[1] - self.Y[0]
@@ -108,8 +113,7 @@ class Wildfire:
         if self.__Neta != 1:
             plt.ion()
             fig = plt.figure()
-            ax = fig.add_subplot(111)  # , projection='3d')
-            # rad = np.load('data/Shifts558_49.npy')
+            ax = fig.add_subplot(111)
 
         # Time loop
         for n in range(self.__timesteps):
@@ -119,16 +123,24 @@ class Wildfire:
             # Store the values in the 'self.qs' for all the time steps successively
             T = np.reshape(q[:, 0], newshape=[self.__Nxi, self.__Neta], order="F")
             S = np.reshape(q[:, 1], newshape=[self.__Nxi, self.__Neta], order="F")
-            self.qs.append([T, S])
+
+            if n % self.select_every_n_timestep == 0:
+                self.qs.append([T, S])
 
             # update plot values
             if self.__Neta != 1:
                 print('Time step: ', n)
 
-                # ax.plot_surface(self.X_2D, self.Y_2D, S, cmap=cm.coolwarm, linewidth=0, antialiased=False)
-                ax.contourf(self.X_2D, self.Y_2D, T, levels=np.linspace(np.min(T), np.max(T), 100, endpoint=True))
-                # # ax.add_patch(plt.Circle((self.__Lxi // 2, self.__Leta // 2), rad[0, 0], fill=False))
-                ax.set_aspect('equal')
+                ax.pcolormesh(self.X_2D, self.Y_2D, T, cmap='YlOrRd', linewidth=0, antialiased=False)  # YlOrRd
+
+                # ax.contourf(self.X_2D, self.Y_2D, T, levels=np.linspace(np.min(T), np.max(T), 100, endpoint=True))
+
+                # ax.plot(self.X, T[:, len(self.Y) // 2], color="black", linestyle="-")
+                # ax.set_ylim(bottom=np.min(T), top=np.max(T))
+                # ax.set_xlabel(r"$X$")
+                # ax.set_ylabel(r"$T$")
+                # ax.set_aspect('equal')
+
                 plt.draw()
                 plt.pause(0.02)
                 ax.cla()

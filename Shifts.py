@@ -86,15 +86,14 @@ def Shifts_2D(SnapShotMatrix, X, Y, t):
     refvalue_front = FlameFrontPos[Nt - 1]
 
     for n in range(Nt):
-        delta[0, 1, n] = 0  # angular direction (frame 1)
         delta[0, 0, n] = abs(FlameFrontPos[n] - refvalue_front)  # radial direction (frame 1)
+        delta[0, 1, n] = 0  # angular direction (frame 1)
+        delta[1, 0, n] = 0  # radial direction (frame 2)
         delta[1, 1, n] = 0  # angular direction (frame 2)
-        delta[1, 0, n] = 0  # FlameFrontPos[0] - FlameFrontPos[n]  # radial direction (frame 2)
 
     deltaold = delta.copy()
 
     tmpShift1 = [delta[0, 0, :]]
-    # tmpShift2 = [delta[1, 0, :]]
     # smoothing
     f1 = interpolate.interp1d(np.asarray([0, Nt // 4, Nt // 2, 3 * Nt // 4, Nt]),
                               np.asarray([tmpShift1[0][0],
@@ -103,15 +102,7 @@ def Shifts_2D(SnapShotMatrix, X, Y, t):
                                           tmpShift1[0][3 * Nt // 4],
                                           tmpShift1[0][-1]]),
                               kind='cubic')
-    # f2 = interpolate.interp1d(np.asarray([0, Nt // 4, Nt // 2, 3 * Nt // 4, Nt]),
-    #                           np.asarray([tmpShift2[0][0],
-    #                                       tmpShift2[0][Nt // 4],
-    #                                       tmpShift2[0][Nt // 2],
-    #                                       tmpShift2[0][3 * Nt // 4],
-    #                                       tmpShift2[0][-1]]),
-    #                           kind='cubic')
     s1 = f1(np.arange(0, Nt))
-    # s2 = f2(np.arange(0, Nt))
     delta[0, 0, :] = s1
     delta[0, 1, :] = 0
     delta[1, 0, :] = 0  # s2
