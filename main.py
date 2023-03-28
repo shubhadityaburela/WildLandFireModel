@@ -10,6 +10,7 @@ import time
 import numpy as np
 import sys
 import os
+np.set_printoptions(threshold=sys.maxsize)
 
 import matplotlib.pyplot as plt
 
@@ -17,45 +18,31 @@ impath = "./data/"
 os.makedirs(impath, exist_ok=True)
 
 # This condition solves the wildfire model and saves the results in .npy files for model reduction
-solve_wildfire = True
+solve_wildfire = False
+solve_shifts = True
 Dimension = "2D"
 if solve_wildfire:
     tic = time.process_time()
     # (500, 500, 1000, 10, Lxi=500, Leta=500, cfl=1.0 / np.sqrt(2))  2D  T = 1000s
     # (3000, 1, 12000, 10, Lxi=1000, Leta=1000, cfl=0.5) 1D  T = 2000s
     # (3000, 1, 6000, 10, Lxi=1000, Leta=1000, cfl=0.7) 1D  T = 1400s
-    wf = Wildfire(Nxi=500, Neta=1 if Dimension == "1D" else 500, timesteps=500, select_every_n_timestep=10)
+    wf = Wildfire(Nxi=500, Neta=1 if Dimension == "1D" else 500, timesteps=500, select_every_n_timestep=5)
     wf.solver()
     toc = time.process_time()
     print(f"Time consumption in solving wildfire PDE : {toc - tic:0.4f} seconds")
 
-    # Create the Shifts for the Wildfire model. This function will only be called once and then the results will be
-    # stored. (DEPENDENT on the problem setup)
-    if Dimension == "1D":
-        # Plot the Full Order Model (FOM)
-        PlotFlow(Model='FOM', SnapMat=wf.qs, X=wf.X, Y=wf.Y, X_2D=wf.X_2D, Y_2D=wf.Y_2D, t=wf.t)
-
-        deltaNew, deltaOld = Shifts_1D(SnapShotMatrix=wf.qs, X=wf.X, t=wf.t)
-    else:
-        # Plot the Full Order Model (FOM)
-        PlotFOM2D(SnapMat=wf.qs, X=wf.X, Y=wf.Y, X_2D=wf.X_2D, Y_2D=wf.Y_2D, t=wf.t, interactive=False, close_up=False, plot_every=10)
-
-        deltaNew, deltaOld = Shifts_2D(SnapShotMatrix=wf.qs, X=wf.X, Y=wf.Y, t=wf.t)
-
     # Save the Snapshot matrix, grid and the time array
     print('Saving the matrix and the grid data')
-    np.save(impath + 'SnapShotMatrix558.49.npy', wf.qs)
+    np.save(impath + 'SnapShotMatrix600.npy', wf.qs)
     np.save(impath + '1D_Grid.npy', [wf.X, wf.Y])
     np.save(impath + 'Time.npy', wf.t)
     np.save(impath + '2D_Grid.npy', [wf.X_2D, wf.Y_2D])
-    np.save(impath + 'Shifts558.49.npy', deltaNew)
 
-#%% Read the data
-SnapShotMatrix = np.load(impath + 'SnapShotMatrix558.49.npy')
+# %% Read the data
+SnapShotMatrix = np.load(impath + 'SnapShotMatrix600.npy')
 XY_1D = np.load(impath + '1D_Grid.npy', allow_pickle=True)
 t = np.load(impath + 'Time.npy')
 XY_2D = np.load(impath + '2D_Grid.npy', allow_pickle=True)
-delta = np.load(impath + 'Shifts558.49.npy')
 X = XY_1D[0]
 Y = XY_1D[1]
 X_2D = XY_2D[0]
@@ -68,9 +55,79 @@ else:
     exit()
 print('Matrix and grid data loaded')
 
-#%%
+
+# ################################################################################
+# Nx = int(np.size(X))
+# Ny = int(np.size(Y))
+# Nt = int(np.size(t))
+# SnapShotMatrix = np.reshape(np.transpose(SnapShotMatrix), newshape=[Nt, 2, Nx, Ny], order="F")
+# T = np.transpose(np.reshape(np.squeeze(SnapShotMatrix[:, 0, :, :]), newshape=[Nt, -1], order="F"))
+# S = np.transpose(np.reshape(np.squeeze(SnapShotMatrix[:, 1, :, :]), newshape=[Nt, -1], order="F"))
+# q = np.reshape(S, newshape=[Nx, Ny, 1, Nt], order="F")
+# from srPCA import edge_detection
+# edge = edge_detection(q=q)
+# # plt.ion()
+# # fig = plt.figure()
+# # ax = fig.add_subplot(111)
+# # T = np.reshape(T, newshape=[Nx, Ny, 1, Nt], order="F")
+# # for i in range(Nt):
+# #     COM_X = np.sum(T[..., 0, i] * X_2D) / (np.sum(T[..., 0, i]))
+# #     COM_Y = np.sum(T[..., 0, i] * Y_2D) / (np.sum(T[..., 0, i]))
+# #     ax.pcolormesh(X_2D, Y_2D, edge[..., 0, i], linewidth=0, antialiased=False)
+# #     ax.plot(COM_X, COM_Y, marker="o", markersize=5, markeredgecolor="red", markerfacecolor="red")
+# #     plt.draw()
+# #     plt.pause(0.02)
+# #     ax.cla()
+# # exit()
+#
+# from srPCA import cartesian_to_polar, polar_to_cartesian
+# edge_polar, theta_i, r_i, _ = cartesian_to_polar(q, X, Y, t, fill_val=1)
+# theta_grid, r_grid = np.meshgrid(theta_i, r_i)
+#
+# # edge_polar[edge_polar < 0.5] = 0
+# # edge_polar[edge_polar > 0.5] = 1
+# plt.ion()
+# fig = plt.figure()
+# ax = fig.add_subplot(111)
+# for i in range(Nt):
+#     ax.pcolormesh(theta_grid, r_grid, edge_polar[..., 0, i], linewidth=0, antialiased=False)
+#     plt.draw()
+#     plt.pause(0.02)
+#     ax.cla()
+# exit()
+# ################################################################################
+
+# %%
+# Create the Shifts for the Wildfire model. This function will only be called once and then the results will be
+# stored. (DEPENDENT on the problem setup)
+if solve_shifts:
+    if Dimension == "1D":
+        # Plot the Full Order Model (FOM)
+        PlotFlow(Model='FOM', SnapMat=SnapShotMatrix, X=X, Y=Y, X_2D=X_2D, Y_2D=Y_2D, t=t)
+
+        deltaNew, deltaOld = Shifts_1D(SnapShotMatrix=SnapShotMatrix, X=X, t=t)
+    else:
+        # Plot the Full Order Model (FOM)
+        PlotFOM2D(SnapMat=SnapShotMatrix, X=X, Y=Y, X_2D=X_2D, Y_2D=Y_2D, t=t, interactive=False, close_up=False,
+                  plot_every=10, plot_at_all=False)
+
+        deltaNew = Shifts_2D(SnapShotMatrix=SnapShotMatrix, X=X, Y=Y, t=t, edge_detection=True)
+    np.save(impath + 'Shifts600.npy', deltaNew)
+
+# # Plot the singular value decay of the original model based on the (temperature) snapshot matrix
+# tmp = np.squeeze(deltaNew[0][0, ...])
+# tmp = np.reshape(tmp, newshape=[-1, len(t)])
+# U, SIG, VH = np.linalg.svd(tmp, full_matrices=False)
+# fig, ax = plt.subplots()
+# ax.plot(SIG / np.sum(SIG), color="red", marker="o")
+# ax.set_xlabel("Number of modes", fontsize=14)
+# ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
+# ax.set_yscale('log')
+# plt.show()
+
+# %%
 # MODEL REDUCTION FRAMEWORK
-# Method chosen for model reduction
+delta = np.load(impath + 'Shifts600.npy')
 method = None
 Nx = int(np.size(X))
 Ny = int(np.size(Y))
@@ -143,7 +200,7 @@ elif method == 'srPCA':
         solve = True
         if solve:
             tic = time.perf_counter()
-            qframe0_lab, qframe1_lab, qtilde, q_POD = srPCA_latest_2D(q=T, delta=delta, X=X, Y=Y, t=t, spod_iter=1000)
+            qframe0_lab, qframe1_lab, qtilde, q_POD = srPCA_latest_2D(q=T, delta=delta, X=X, Y=Y, t=t, spod_iter=4)
             toc = time.perf_counter()
             print(f"Time consumption in solving 2D srPCA : {toc - tic:0.4f} seconds")
         else:
@@ -154,7 +211,10 @@ elif method == 'srPCA':
             q_POD = np.load(impath + 'q_POD.npy')
 
         # Plots
-        T = np.reshape(T, newshape=[Nx, Ny, 1, Nt], order="F")
-        SnapMat = [T, qframe0_lab, qframe1_lab, qtilde, q_POD]
-        PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='mixed', interactive=False,
-                  close_up=False, plot_every=10)
+        var = T
+        var_name = 'T'
+        cmap = 'YlOrRd'
+        var = np.reshape(var, newshape=[Nx, Ny, 1, Nt], order="F")
+        SnapMat = [var, qframe0_lab, qframe1_lab, qtilde, q_POD]
+        PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name=var_name, type_plot='mixed', interactive=False,
+                  close_up=False, plot_every=4, cmap=cmap)

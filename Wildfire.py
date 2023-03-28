@@ -131,15 +131,16 @@ class Wildfire:
             if self.__Neta != 1:
                 print('Time step: ', n)
 
+                COM_X = np.sum(T * self.X_2D) / (np.sum(T))
+                COM_Y = np.sum(T * self.Y_2D) / (np.sum(T))
+
                 ax.pcolormesh(self.X_2D, self.Y_2D, T, cmap='YlOrRd', linewidth=0, antialiased=False)  # YlOrRd
+                ax.plot(COM_X, COM_Y, marker="o", markersize=5, markeredgecolor="red", markerfacecolor="red")
 
-                # ax.contourf(self.X_2D, self.Y_2D, T, levels=np.linspace(np.min(T), np.max(T), 100, endpoint=True))
-
-                # ax.plot(self.X, T[:, len(self.Y) // 2], color="black", linestyle="-")
-                # ax.set_ylim(bottom=np.min(T), top=np.max(T))
-                # ax.set_xlabel(r"$X$")
-                # ax.set_ylabel(r"$T$")
-                # ax.set_aspect('equal')
+                # # ax.plot(self.X, T[:, len(self.Y) // 2], color="black", linestyle="-")
+                # # ax.set_ylim(bottom=np.min(T), top=np.max(T))
+                # # ax.set_xlabel(r"$X$")
+                # # ax.set_ylabel(r"$T$")
 
                 plt.draw()
                 plt.pause(0.02)
