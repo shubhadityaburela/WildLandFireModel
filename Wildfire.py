@@ -37,8 +37,8 @@ class Wildfire:
         # Dimensional constants used in the model
         self.__thermaldiffusivity = 0.2136
         self.__preexponentialfactor = 0.1625
-        self.__windspeed_x = 0.2
-        self.__windspeed_y = 0
+        self.__windspeed_x = np.zeros(self.__timesteps) # * np.sin(np.arange(0, np.pi * 2, np.pi * 2 / self.__timesteps))
+        self.__windspeed_y = np.zeros(self.__timesteps)  # * np.cos(np.arange(0, np.pi * 2, np.pi * 2 / self.__timesteps))
         self.__temperaturerisepersecond = 187.93
         self.__scaledheattransfercoefficient = 4.8372e-5
         self.__beta = 558.49
@@ -110,15 +110,15 @@ class Wildfire:
         self.Mat = CoefficientMatrix(orderDerivative=self.__firstderivativeOrder, Nxi=self.__Nxi,
                                      Neta=self.__Neta, periodicity='Periodic', dx=dx, dy=dy)
 
-        if self.__Neta != 1:
-            plt.ion()
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
+        # if self.__Neta != 1:
+        #     plt.ion()
+        #     fig = plt.figure()
+        #     ax = fig.add_subplot(111)
 
         # Time loop
         for n in range(self.__timesteps):
             # Main Runge-Kutta 4 solver step
-            q = self.__RK4(q, dt, 0)
+            q = self.__RK4(q, dt, 0, t_step=n)
 
             # Store the values in the 'self.qs' for all the time steps successively
             T = np.reshape(q[:, 0], newshape=[self.__Nxi, self.__Neta], order="F")
@@ -131,24 +131,24 @@ class Wildfire:
             if self.__Neta != 1:
                 print('Time step: ', n)
 
-                COM_X = np.sum(T * self.X_2D) / (np.sum(T))
-                COM_Y = np.sum(T * self.Y_2D) / (np.sum(T))
-
-                ax.pcolormesh(self.X_2D, self.Y_2D, T, cmap='YlOrRd', linewidth=0, antialiased=False)  # YlOrRd
-                ax.plot(COM_X, COM_Y, marker="o", markersize=5, markeredgecolor="red", markerfacecolor="red")
-
-                # # ax.plot(self.X, T[:, len(self.Y) // 2], color="black", linestyle="-")
-                # # ax.set_ylim(bottom=np.min(T), top=np.max(T))
-                # # ax.set_xlabel(r"$X$")
-                # # ax.set_ylabel(r"$T$")
-
-                plt.draw()
-                plt.pause(0.02)
-                ax.cla()
+                # COM_X = np.sum(T * self.X_2D) / (np.sum(T))
+                # COM_Y = np.sum(T * self.Y_2D) / (np.sum(T))
+                #
+                # ax.pcolormesh(self.X_2D, self.Y_2D, T, cmap='YlOrRd', linewidth=0, antialiased=False)  # YlOrRd
+                # ax.plot(COM_X, COM_Y, marker="o", markersize=5, markeredgecolor="red", markerfacecolor="red")
+                #
+                # # # ax.plot(self.X, T[:, len(self.Y) // 2], color="black", linestyle="-")
+                # # # ax.set_ylim(bottom=np.min(T), top=np.max(T))
+                # # # ax.set_xlabel(r"$X$")
+                # # # ax.set_ylabel(r"$T$")
+                #
+                # plt.draw()
+                # plt.pause(0.02)
+                # ax.cla()
         pass
 
     # Private function for this class
-    def __RHS(self, q, t):
+    def __RHS(self, q, t, t_step=0):
         T = q[:, 0]
         S = q[:, 1]
 
@@ -160,8 +160,8 @@ class Wildfire:
 
         # Coefficients for the terms in the equation
         Coeff_diff = self.__thermaldiffusivity
-        Coeff_conv_x = self.__windspeed_x
-        Coeff_conv_y = self.__windspeed_y
+        Coeff_conv_x = self.__windspeed_x[t_step]
+        Coeff_conv_y = self.__windspeed_y[t_step]
 
         Coeff_source = self.__temperaturerisepersecond * self.__scaledheattransfercoefficient
         Coeff_arrhenius = self.__temperaturerisepersecond
@@ -176,11 +176,11 @@ class Wildfire:
         return qdot
 
     # Private function for this class
-    def __RK4(self, u0, dt, t):
-        k1 = self.__RHS(u0, t)
-        k2 = self.__RHS(u0 + dt / 2 * k1, t + dt / 2)
-        k3 = self.__RHS(u0 + dt / 2 * k2, t + dt / 2)
-        k4 = self.__RHS(u0 + dt * k3, t + dt)
+    def __RK4(self, u0, dt, t, t_step=0):
+        k1 = self.__RHS(u0, t, t_step)
+        k2 = self.__RHS(u0 + dt / 2 * k1, t + dt / 2, t_step)
+        k3 = self.__RHS(u0 + dt / 2 * k2, t + dt / 2, t_step)
+        k4 = self.__RHS(u0 + dt * k3, t + dt, t_step)
 
         u1 = u0 + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 

@@ -1,4 +1,5 @@
 import numpy as np
+import skimage.color
 from sklearn.utils.extmath import randomized_svd
 from Transforms import Transforms
 import matplotlib.pyplot as plt
@@ -126,11 +127,32 @@ def srPCA_latest_2D(q, delta, X, Y, t, spod_iter):
     #     ax.cla()
     # exit()
 
+
+    # tmp = trafo_1.reverse(q_polar)
+    # theta_grid, r_grid = np.meshgrid(theta_i, r_i)
+    # import os
+    # import glob
+    # import moviepy.video.io.ImageSequenceClip
+    # immpath = "./plots/srPCA_2D/frames/"
+    # os.makedirs(immpath, exist_ok=True)
+    # for k in range(Nt):
+    #     if k % 10 == 0:
+    #         fig, ax = plt.subplots(1, 2, figsize=(12, 5))
+    #         ax[0].pcolormesh(theta_grid, r_grid, tmp[..., 0, k], linewidth=0, antialiased=False)
+    #         ax[1].pcolormesh(theta_grid, r_grid, q_polar[..., 0, k], linewidth=0, antialiased=False)
+    #         fig.savefig(immpath + "Comp-" + str(k), dpi=600, transparent=True)
+    #         plt.close(fig)
+    # fps = 1
+    # image_files = sorted(glob.glob(os.path.join(immpath, "*.png")), key=os.path.getmtime)
+    # clip = moviepy.video.io.ImageSequenceClip.ImageSequenceClip(image_files, fps=fps)
+    # clip.write_videofile(immpath + 'Comp.mp4')
+    # exit()
+
     # Apply srPCA on the data
     transform_list = [trafo_1, trafo_2]
     qmat = np.reshape(q_polar, [-1, Nt])
-    mu = np.prod(np.size(qmat, 0)) / (4 * np.sum(np.abs(qmat))) * 0.2
-    lambd = 1 / np.sqrt(np.max([Nx, Ny]))
+    mu = np.prod(np.size(qmat, 0)) / (4 * np.sum(np.abs(qmat))) * 1.0    # mu multiplication factor (best = 0.5) with 7 iterations
+    lambd = 1 / np.sqrt(np.max([Nx, Ny])) * 100000.0                          # lamda multiplication factor (best = 0.5 or 1 or make it 100000)
     ret = shifted_rPCA(qmat, transform_list, nmodes_max=100, eps=1e-4, Niter=spod_iter, use_rSVD=True, mu=mu, lambd=lambd)
     # ret = shifted_POD(qmat, transform_list, nmodes=np.asarray([4, 2]), eps=1e-4, Niter=spod_iter, use_rSVD=False)
     qframes, qtilde, rel_err = ret.frames, ret.data_approx, ret.rel_err_hist
@@ -156,7 +178,7 @@ def srPCA_latest_2D(q, delta, X, Y, t, spod_iter):
     print("Error for full sPOD recons: {}".format(err_full))
 
     # Relative reconstruction error for POD
-    U, S, VT = randomized_svd(Q, n_components=sum(modes_list), random_state=None)
+    U, S, VT = randomized_svd(Q, n_components=sum(modes_list) + 4, random_state=None)
     Q_POD = U.dot(np.diag(S).dot(VT))
     err_full = np.linalg.norm(np.reshape(Q - Q_POD, -1)) / np.linalg.norm(np.reshape(Q, -1))
     print("Error for full POD recons: {}".format(err_full))
@@ -226,15 +248,15 @@ def polar_to_cartesian(polar_data, t, aux=None):
 
 
 def edge_detection(q, t_exact=None, for_all_t=True):
-    from skimage import feature
+    from skimage import feature, filters
 
     if for_all_t:
         Nt = int(q.shape[3])
         edge = np.zeros_like(q)
         for i in range(Nt):
-            edge[..., 0, i] = feature.canny(q[..., 0, i], sigma=5).astype(int)
+            edge[..., 0, i] = feature.canny(q[..., 0, i], sigma=2).astype(int)
     else:
-        edge = feature.canny(q[..., 0, t_exact], sigma=5).astype(int)
+        edge = feature.canny(q[..., 0, t_exact], sigma=2).astype(int)
 
     return edge
 
