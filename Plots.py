@@ -113,29 +113,6 @@ class PlotFlow:
 
         save_fig(filepath=immpath + 'Variable', figure=fig)
 
-        # # Plot the singular value decay of the original model based on the (temperature) snapshot matrix
-        # U, SIG, VH = np.linalg.svd(T)
-        # fig, ax = plt.subplots(num=2)
-        # ax.plot(SIG / np.sum(SIG), color="red", marker="o")
-        # ax.set_xlabel("Number of modes", fontsize=14)
-        # ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
-        # ax2 = ax.twinx()
-        # ax2.plot(SIG, color="blue", marker="o")
-        # ax2.set_yscale('log')
-        # ax2.set_ylabel("Semi log plot for the singular values", color="blue", fontsize=14)
-        # save_fig(filepath=immpath + 'SVDecayOriginalModel_T', figure=fig)
-        #
-        # U, SIG, VH = np.linalg.svd(S)
-        # fig, ax = plt.subplots(num=3)
-        # ax.plot(SIG / np.sum(SIG), color="red", marker="o")
-        # ax.set_xlabel("Number of modes", fontsize=14)
-        # ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
-        # ax2 = ax.twinx()
-        # ax2.plot(SIG, color="blue", marker="o")
-        # ax2.set_yscale('log')
-        # ax2.set_ylabel("Semi log plot for the singular values", color="blue", fontsize=14)
-        # save_fig(filepath=immpath + 'SVDecayOriginalModel_S', figure=fig)
-
         print('All the plots for the ORIGINAL MODEL saved')
 
     def __SnapShotPOD(self, SnapMat):
@@ -258,13 +235,13 @@ def PlotFOM2D(SnapMat, X, Y, X_2D, Y_2D, t, interactive=False, close_up=False, p
     if plot_at_all:
         # Plot a close up view (plot 50 percent of the whole domain as default)
         if close_up:
-            s_x = int(Nx // 4);
+            s_x = int(Nx // 4)
             e_x = 3 * int(Nx // 4)
-            s_y = int(Ny // 4);
+            s_y = int(Ny // 4)
             e_y = 3 * int(Ny // 4)
-            X = X[s_x:e_x];
+            X = X[s_x:e_x]
             Y = Y[s_y:e_y]
-            Nx = len(X);
+            Nx = len(X)
             Ny = len(Y)
             X_2D, Y_2D = np.meshgrid(X, Y)
             X_2D, Y_2D = np.transpose(X_2D), np.transpose(Y_2D)
@@ -355,13 +332,13 @@ def PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', intera
 
     # Plot a close up view (plot 50 percent of the whole domain as default)
     if close_up:
-        s_x = int(Nx // 4);
+        s_x = int(Nx // 4)
         e_x = 3 * int(Nx // 4)
-        s_y = int(Ny // 4);
+        s_y = int(Ny // 4)
         e_y = 3 * int(Ny // 4)
-        X = X[s_x:e_x];
+        X = X[s_x:e_x]
         Y = Y[s_y:e_y]
-        Nx = len(X);
+        Nx = len(X)
         Ny = len(Y)
         X_2D, Y_2D = np.meshgrid(X, Y)
         X_2D, Y_2D = np.transpose(X_2D), np.transpose(Y_2D)
@@ -370,146 +347,6 @@ def PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', intera
         qframe1_lab = qframe1_lab[s_x:e_x, s_y:e_y, :, :]
         qtilde = qtilde[s_x:e_x, s_y:e_y, :, :]
         q_POD = q_POD[s_x:e_x, s_y:e_y, :, :]
-
-    #######################################################
-    from srPCA import cartesian_to_polar
-    q_polar, theta_i, r_i, _ = cartesian_to_polar(q, X, Y, t)
-    theta_grid, r_grid = np.meshgrid(theta_i, r_i)
-
-    fig = plt.figure(figsize=(12, 7), constrained_layout=True)
-    (subfig_t, subfig_b) = fig.subfigures(1, 2, hspace=0.05, wspace=0.1)
-
-    # put 3 axis in the top subfigure
-    gs_t = subfig_t.add_gridspec(nrows=4, ncols=1)
-    ax1 = subfig_t.add_subplot(gs_t[0:4, 0])
-
-    min = np.min(q[..., 0, -1])
-    max = np.max(q[..., 0, -1])
-    ax1.plot(X, np.squeeze(q[:, Ny // 2, 0, 29]), color="green", linestyle="-", label=r"$t=300s$")
-    ax1.plot(X, np.squeeze(q[:, Ny // 2, 0, -1]), color="green", linestyle="-.", label=r"$t=1000s$")
-    ax1.vlines(x=250, ymin=0, ymax=900, colors='black', linestyles="--")
-    ax1.annotate(r"$\Delta$", xy=(195, 800),
-                 xytext=(37, 790),
-                 xycoords='data',
-                 textcoords='data',
-                 arrowprops=dict(arrowstyle='<|-|>',
-                                 color='blue',
-                                 lw=2.5,
-                                 ls='--'),
-                 # fontsize=18
-                 )
-    ax1.annotate(r"$R$", xy=(255, 600),
-                 xytext=(155, 590),
-                 xycoords='data',
-                 textcoords='data',
-                 arrowprops=dict(arrowstyle='<|-|>',
-                                 color='red',
-                                 lw=2.5,
-                                 ls='--'),
-                 # fontsize=18
-                 )
-    ax1.set_ylim(bottom=min, top=max + 300)
-    # ax1.axis('auto')
-    ax1.legend()
-    ax1.grid()
-
-    subfig_t.supylabel(r"$" + str(var_name) + "$")
-    subfig_t.supxlabel(r"space $x$")
-
-    gs_b = subfig_b.add_gridspec(nrows=4, ncols=1)
-    ax4 = subfig_b.add_subplot(gs_b[0:2, 0])
-    ax5 = subfig_b.add_subplot(gs_b[2:4, 0], sharex=ax4, sharey=ax4)
-
-    ax5.pcolormesh(theta_grid, r_grid, np.squeeze(q_polar[..., 0, 29]), cmap=cmap)
-    # ax4.axis('auto')
-
-    ax4.pcolormesh(theta_grid, r_grid, np.squeeze(q_polar[..., 0, -1]), cmap=cmap)
-    # ax5.axis('auto')
-
-    subfig_b.supylabel(r"$R$")
-    subfig_b.supxlabel(r"$\theta$(rad)")
-
-    fig.savefig('polar_cs', dpi=300, transparent=True)
-    fig.savefig('polar_cs', format="pdf", bbox_inches="tight", transparent=True)
-
-    exit()
-
-    #######################################################
-
-
-    #######################################################
-    from srPCA import edge_detection, cartesian_to_polar
-    from scipy.ndimage import uniform_filter1d
-    q_polar, theta_i, r_i, _ = cartesian_to_polar(q, X, Y, t, fill_val=1)
-    theta_grid, r_grid = np.meshgrid(theta_i, r_i)
-
-    # Perform edge detection
-    edge = edge_detection(q=q_polar)
-    refvalue_front = np.amax(edge[..., 0, -1] * r_grid, axis=0)
-    is_zero = np.where(refvalue_front != 0)[0]
-    if np.any(is_zero):
-        refvalue_front = np.interp(x=theta_i, xp=theta_i[is_zero], fp=refvalue_front[is_zero])
-    front = np.amax(edge[..., 0, 29] * r_grid, axis=0)
-    is_zero = np.where(front != 0)[0]
-    if np.any(is_zero):
-        front = np.interp(x=theta_i, xp=theta_i[is_zero], fp=front[is_zero])
-
-
-
-    fig = plt.figure(figsize=(12, 7), constrained_layout=True)
-    (subfig_t, subfig_b) = fig.subfigures(1, 2, hspace=0.05, wspace=0.1)
-
-    # put 3 axis in the top subfigure
-    gs_t = subfig_t.add_gridspec(nrows=4, ncols=1)
-    ax1 = subfig_t.add_subplot(gs_t[0:4, 0])
-
-    ax1.plot(theta_i, front, color="green", linestyle="-", label=r"$t=150s$")
-    ax1.plot(theta_i, refvalue_front, color="orange", linestyle="-.", label=r"$t=500s$")
-    ax1.annotate(r"$\Delta^{\theta_1}$", xy=(1.6, 142),
-                 xytext=(1.4, 433),
-                 xycoords='data',
-                 textcoords='data',
-                 arrowprops=dict(arrowstyle='<|-|>',
-                                 color='blue',
-                                 lw=2.0,
-                                 ls='--')
-                 )
-    ax1.annotate(r"$\Delta^{\theta_2}$", xy=(1.0, 128),
-                 xytext=(0.8, 372),
-                 xycoords='data',
-                 textcoords='data',
-                 arrowprops=dict(arrowstyle='<|-|>',
-                                 color='red',
-                                 lw=2.0,
-                                 ls='--')
-                 )
-    ax1.legend()
-    ax1.grid()
-
-    subfig_t.supylabel(r"$R$")
-    subfig_t.supxlabel(r"$\theta$(rad)")
-
-    gs_b = subfig_b.add_gridspec(nrows=4, ncols=1)
-    ax4 = subfig_b.add_subplot(gs_b[0:2, 0])
-    ax5 = subfig_b.add_subplot(gs_b[2:4, 0], sharex=ax4, sharey=ax4)
-
-    ax5.pcolormesh(theta_grid, r_grid, np.squeeze(q_polar[..., 0, 29]), cmap=cmap)
-    # ax4.axis('auto')
-
-    ax4.pcolormesh(theta_grid, r_grid, np.squeeze(q_polar[..., 0, -1]), cmap=cmap)
-    # ax5.axis('auto')
-
-    subfig_b.supylabel(r"$R$")
-    subfig_b.supxlabel(r"$\theta$(rad)")
-
-    fig.savefig('polar_nonlinear_cs', dpi=300, transparent=True)
-    fig.savefig('polar_nonlinear_cs', format="pdf", bbox_inches="tight", transparent=True)
-
-    exit()
-
-    #######################################################
-
-
 
     if interactive:
         if type_plot == "1D":

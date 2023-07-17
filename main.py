@@ -56,85 +56,6 @@ else:
     exit()
 print('Matrix and grid data loaded')
 
-
-
-
-# immpath = "./plots/"
-# SnapShotMatrix = np.reshape(np.transpose(SnapShotMatrix), newshape=[len(t), 2, len(X), len(Y)], order="F")
-# os.makedirs(immpath, exist_ok=True)
-# min_T_0 = np.min(SnapShotMatrix[0, 0, :, :])
-# max_T_0 = np.max(SnapShotMatrix[0, 0, :, :])
-# min_T_n = np.min(SnapShotMatrix[-1, 0, :, :])
-# max_T_n = np.max(SnapShotMatrix[-1, 0, :, :])
-#
-# fig = plt.figure(figsize=(10, 5))
-# ax1 = fig.add_subplot(121)
-# im1 = ax1.pcolormesh(X_2D, Y_2D, np.squeeze(SnapShotMatrix[0, 0, :, :]), vmin=min_T_0, vmax=max_T_0, cmap='YlOrRd')
-# ax1.axis('scaled')
-# ax1.set_title(r"$t=t_{\mathrm{start}}$")
-# ax1.set_yticks([], [])
-# ax1.set_xticks([], [])
-# # divider = make_axes_locatable(ax1)
-# # cax = divider.append_axes('right', size='10%', pad=0.08)
-# # fig.colorbar(im1, cax=cax, orientation='vertical')
-#
-# ax2 = fig.add_subplot(122)
-# im2 = ax2.pcolormesh(X_2D, Y_2D, np.squeeze(SnapShotMatrix[-1, 0, :, :]), vmin=min_T_n, vmax=max_T_n, cmap='YlOrRd')
-# ax2.axis('scaled')
-# ax2.set_title(r"$t=t_{\mathrm{end}}$")
-# ax2.set_yticks([], [])
-# ax2.set_xticks([], [])
-# # divider = make_axes_locatable(ax2)
-# # cax = divider.append_axes('right', size='10%', pad=0.08)
-# # fig.colorbar(im2, cax=cax, orientation='vertical')
-#
-# fig.supylabel(r"space $y$")
-# fig.supxlabel(r"space $x$")
-#
-# fig.savefig(immpath + "Var", dpi=600, transparent=True)
-# plt.close(fig)
-
-# ################################################################################
-# Nx = int(np.size(X))
-# Ny = int(np.size(Y))
-# Nt = int(np.size(t))
-# SnapShotMatrix = np.reshape(np.transpose(SnapShotMatrix), newshape=[Nt, 2, Nx, Ny], order="F")
-# T = np.transpose(np.reshape(np.squeeze(SnapShotMatrix[:, 0, :, :]), newshape=[Nt, -1], order="F"))
-# S = np.transpose(np.reshape(np.squeeze(SnapShotMatrix[:, 1, :, :]), newshape=[Nt, -1], order="F"))
-# q = np.reshape(S, newshape=[Nx, Ny, 1, Nt], order="F")
-# from srPCA import edge_detection
-# edge = edge_detection(q=q)
-# # plt.ion()
-# # fig = plt.figure()
-# # ax = fig.add_subplot(111)
-# # T = np.reshape(T, newshape=[Nx, Ny, 1, Nt], order="F")
-# # for i in range(Nt):
-# #     COM_X = np.sum(T[..., 0, i] * X_2D) / (np.sum(T[..., 0, i]))
-# #     COM_Y = np.sum(T[..., 0, i] * Y_2D) / (np.sum(T[..., 0, i]))
-# #     ax.pcolormesh(X_2D, Y_2D, edge[..., 0, i], linewidth=0, antialiased=False)
-# #     ax.plot(COM_X, COM_Y, marker="o", markersize=5, markeredgecolor="red", markerfacecolor="red")
-# #     plt.draw()
-# #     plt.pause(0.02)
-# #     ax.cla()
-# # exit()
-#
-# from srPCA import cartesian_to_polar, polar_to_cartesian
-# edge_polar, theta_i, r_i, _ = cartesian_to_polar(q, X, Y, t, fill_val=1)
-# theta_grid, r_grid = np.meshgrid(theta_i, r_i)
-#
-# # edge_polar[edge_polar < 0.5] = 0
-# # edge_polar[edge_polar > 0.5] = 1
-# plt.ion()
-# fig = plt.figure()
-# ax = fig.add_subplot(111)
-# for i in range(Nt):
-#     ax.pcolormesh(theta_grid, r_grid, edge_polar[..., 0, i], linewidth=0, antialiased=False)
-#     plt.draw()
-#     plt.pause(0.02)
-#     ax.cla()
-# exit()
-# ################################################################################
-
 # %%
 # Create the Shifts for the Wildfire model. This function will only be called once and then the results will be
 # stored. (DEPENDENT on the problem setup)
@@ -147,21 +68,11 @@ if solve_shifts:
     else:
         # Plot the Full Order Model (FOM)
         PlotFOM2D(SnapMat=SnapShotMatrix, X=X, Y=Y, X_2D=X_2D, Y_2D=Y_2D, t=t, interactive=False, close_up=False,
-                  plot_every=10, plot_at_all=True)
+                  plot_every=10, plot_at_all=False)
 
         deltaNew = Shifts_2D(SnapShotMatrix=SnapShotMatrix, X=X, Y=Y, t=t, edge_detection=False)
     np.save(impath + 'Shifts558.49.npy', deltaNew)
 
-# # Plot the singular value decay of the original model based on the (temperature) snapshot matrix
-# tmp = np.squeeze(deltaNew[0][0, ...])
-# tmp = np.reshape(tmp, newshape=[-1, len(t)])
-# U, SIG, VH = np.linalg.svd(tmp, full_matrices=False)
-# fig, ax = plt.subplots()
-# ax.plot(SIG / np.sum(SIG), color="red", marker="o")
-# ax.set_xlabel("Number of modes", fontsize=14)
-# ax.set_ylabel("Percentage weightage", color="red", fontsize=14)
-# ax.set_yscale('log')
-# plt.show()
 
 # %%
 # MODEL REDUCTION FRAMEWORK

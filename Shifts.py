@@ -108,192 +108,65 @@ def Shifts_2D(SnapShotMatrix, X, Y, t, edge_detection=False):
         S = np.transpose(np.reshape(np.squeeze(SnapShotMatrix[:, 1, :, :]), newshape=[Nt, -1], order="F"))
         S = np.reshape(S, newshape=[Nx, Ny, 1, Nt], order="F")
 
-        switch = True
-        if switch:
-            from srPCA import edge_detection, cartesian_to_polar
-            from scipy.signal import savgol_filter
-            from scipy.ndimage import uniform_filter1d
+        from srPCA import edge_detection, cartesian_to_polar
+        from scipy.ndimage import uniform_filter1d
 
-            # Perform coordinate transformation to polar coordinates
-            S_polar, theta_i, r_i, _ = cartesian_to_polar(S, X, Y, t, fill_val=1)
-            theta_grid, r_grid = np.meshgrid(theta_i, r_i)
-            N_r, N_theta = len(r_i), len(theta_i)
+        # Perform coordinate transformation to polar coordinates
+        S_polar, theta_i, r_i, _ = cartesian_to_polar(S, X, Y, t, fill_val=1)
+        theta_grid, r_grid = np.meshgrid(theta_i, r_i)
+        N_r, N_theta = len(r_i), len(theta_i)
 
-            # Perform edge detection
-            edge = edge_detection(q=S_polar)
+        # Perform edge detection
+        edge = edge_detection(q=S_polar)
 
-            # Edge correction if required
-            ctr = 0
-            for n in range(Nt):
-                if not np.any(edge[..., 0, n]):
-                    ctr += 1
-            for n in range(ctr):
-                edge[..., 0, n] = edge[..., 0, ctr]
+        # Edge correction if required
+        ctr = 0
+        for n in range(Nt):
+            if not np.any(edge[..., 0, n]):
+                ctr += 1
+        for n in range(ctr):
+            edge[..., 0, n] = edge[..., 0, ctr]
 
-            # Calculate the reference front
-            refvalue_front = np.amax(edge[..., 0, -1] * r_grid, axis=0)
+        # Calculate the reference front
+        refvalue_front = np.amax(edge[..., 0, -1] * r_grid, axis=0)
 
-            # fill the discontinuities for the front (correction)
-            is_zero = np.where(refvalue_front != 0)[0]
+        # fill the discontinuities for the front (correction)
+        is_zero = np.where(refvalue_front != 0)[0]
+        if np.any(is_zero):
+            refvalue_front = np.interp(x=theta_i, xp=theta_i[is_zero], fp=refvalue_front[is_zero])
+
+        deltanew = [np.zeros((Numdim, N_r, N_theta, Nt)), np.zeros((Numdim, N_r, N_theta, Nt))]  # for both frames
+        for n in range(Nt):
+            # Calculate the current front
+            front = np.amax(edge[..., 0, n] * r_grid, axis=0)
+
+            # fill the discontinuities (correction)
+            is_zero = np.where(front != 0)[0]
             if np.any(is_zero):
-                refvalue_front = np.interp(x=theta_i, xp=theta_i[is_zero], fp=refvalue_front[is_zero])
+                front = np.interp(x=theta_i, xp=theta_i[is_zero], fp=front[is_zero])
 
-            # plt.ion()
-            # fig = plt.figure()
-            # ax = fig.add_subplot(111)
-            # for n in range(Nt):
-            #     ax.pcolormesh(theta_i, r_i, S[..., 0, n], linewidth=1, antialiased=False)
-            #     # ax.plot_surface(theta_i, r_i, edge[..., 0, -1] * r_grid, linewidth=1, antialiased=False)
-            #     # ax.plot(theta_i, refvalue_front, color="red", marker="*")
-            #     plt.draw()
-            #     plt.pause(1)
-            #     ax.cla()
-            # exit()
+            # Calculate the shifts
+            max_shifts = np.abs(refvalue_front - front)
 
-            deltanew = [np.zeros((Numdim, N_r, N_theta, Nt)), np.zeros((Numdim, N_r, N_theta, Nt))]  # for both frames
-
-            # plt.ion()
-            # fig = plt.figure()
-            # ax = fig.add_subplot(111)
-            for n in range(Nt):
-                # Calculate the current front
-                front = np.amax(edge[..., 0, n] * r_grid, axis=0)
-
-                # fill the discontinuities (correction)
-                is_zero = np.where(front != 0)[0]
-                if np.any(is_zero):
-                    front = np.interp(x=theta_i, xp=theta_i[is_zero], fp=front[is_zero])
-
-                # Calculate the shifts
-                max_shifts = np.abs(refvalue_front - front)
-
-                # Smooth the shifts
-                # max_shifts_smooth = savgol_filter(max_shifts, window_length=10, polyorder=5)
-                max_shifts_smooth = uniform_filter1d(max_shifts, size=10, mode="nearest")
-
-                # # ax.plot(theta_i, refvalue_front, color="red", marker="*")
-                # # ax.plot(theta_i, front, color="blue", marker="+")
-                # ax.plot(theta_i, max_shifts, color="orange", marker="+")
-                # ax.plot(theta_i, max_shifts_smooth, color="green", marker="+")
-                # plt.draw()
-                # plt.pause(0.5)
-                # ax.cla()
-
-                max_shifts_smooth = np.repeat(max_shifts_smooth[None, :], N_r, axis=0)
-                # Radial direction
-                deltanew[0][0, ..., n] = max_shifts_smooth  # frame 1
-                deltanew[1][0, ..., n] = 0  # frame 2
-                # Angular direction
-                deltanew[0][1, ..., n] = 0  # frame 1
-                deltanew[1][1, ..., n] = 0  # frame 2
+            # Smooth the shifts
+            max_shifts_smooth = uniform_filter1d(max_shifts, size=10, mode="nearest")
+            max_shifts_smooth = np.repeat(max_shifts_smooth[None, :], N_r, axis=0)
+            # Radial direction
+            deltanew[0][0, ..., n] = max_shifts_smooth  # frame 1
+            deltanew[1][0, ..., n] = 0  # frame 2
+            # Angular direction
+            deltanew[0][1, ..., n] = 0  # frame 1
+            deltanew[1][1, ..., n] = 0  # frame 2
 
 
-            shifts = np.reshape(deltanew[0][0], newshape=[-1, Nt])
-            U, S, VT = np.linalg.svd(shifts, full_matrices=False)
-            num_modes = 4
-            shifts_trunc = U[:, :num_modes].dot(np.diag(S[:num_modes]).dot(VT[:num_modes, :]))
-            err_full = np.linalg.norm(shifts - shifts_trunc) / np.linalg.norm(shifts)
-            print("Error for full POD recons of shifts with 4 modes: {}".format(err_full))
-
-
-            # import os
-            # import glob
-            # import moviepy.video.io.ImageSequenceClip
-            # immpath = "./plots/srPCA_2D/shifts/"
-            # os.makedirs(immpath, exist_ok=True)
-            # for k in range(Nt):
-            #     fig = plt.figure()
-            #     ax = fig.add_subplot(111)
-            #     ax.plot(theta_i, deltanew[0][0, 20, :, k], linewidth=1, antialiased=False)
-            #     fig.savefig(immpath + "Shift-" + str(k), dpi=600, transparent=True)
-            #     plt.close(fig)
-            # fps = 1
-            # image_files = sorted(glob.glob(os.path.join(immpath, "*.png")), key=os.path.getmtime)
-            # clip = moviepy.video.io.ImageSequenceClip.ImageSequenceClip(image_files, fps=fps)
-            # clip.write_videofile(immpath + 'Shift.mp4')
-            # exit()
-        else:
-            # Perform transformation to polar coordinates
-            from srPCA import cartesian_to_polar
-            S_polar, theta_i, r_i, _ = cartesian_to_polar(S, X, Y, t, fill_val=1)
-            theta_grid, r_grid = np.meshgrid(theta_i, r_i)
-            N_r, N_theta = len(r_i), len(theta_i)
-            deltanew = [np.zeros((Numdim, N_r, N_theta, Nt)),
-                        np.zeros((Numdim, N_r, N_theta, Nt))]  # for both the frames
-
-            plt.ion()
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            for n in range(Nt):
-                sliced = S_polar[:, 3 * Ny // 4, 0, n]
-                tmp_out = InHouse_edgeDetection_1D(sliced, r_i)
-
-                ax.plot(sliced, linewidth=1, color="red", marker="*")
-                ax.plot(tmp_out, linewidth=1, color="blue", marker="+")
-                plt.draw()
-                plt.pause(10000)
-                ax.cla()
+        shifts = np.reshape(deltanew[0][0], newshape=[-1, Nt])
+        U, S, VT = np.linalg.svd(shifts, full_matrices=False)
+        num_modes = 4
+        shifts_trunc = U[:, :num_modes].dot(np.diag(S[:num_modes]).dot(VT[:num_modes, :]))
+        err_full = np.linalg.norm(shifts - shifts_trunc) / np.linalg.norm(shifts)
+        print("Error for full POD recons of shifts with 4 modes: {}".format(err_full))
 
     return deltanew
-
-
-def InHouse_edgeDetection_1D(sliced, r):
-    threshold = 0.5
-    Nr = len(r)
-
-    from Coefficient_Matrix import CoefficientMatrix
-    NX = CoefficientMatrix.D1_periodic(np.asarray([1, 0, 1]), Nr, 1)
-    DX = CoefficientMatrix.D1_periodic(np.asarray([-1, 0, 1]), Nr, 1)
-
-    gradLevFun = DX * sliced
-
-    mask = 1 * (sliced <= threshold)
-    numNeighbor = NX * mask
-    nextToBoundOut = (numNeighbor > 0) * (1 - mask)
-    nextToBoundIn = (numNeighbor < 4) * mask
-
-    Curve = []
-
-    for i in range(Nr):
-        searchPiece = np.logical_or(nextToBoundOut[i], nextToBoundIn[i])
-
-        if np.logical_and(nextToBoundOut[i], nextToBoundIn[i]):
-            print("Something wrong, should be in or out of the domain !")
-            exit()
-
-        if searchPiece:
-            if nextToBoundOut[i]:
-                grad_phi = - gradLevFun[i]
-            else:
-                grad_phi = gradLevFun[i]
-
-            if grad_phi > 0:
-                iStep = 1
-            else:
-                iStep = -1
-
-            i1 = i
-            i2 = i + iStep
-
-            if i1 < 0 : i1 += Nr - 1
-            elif i1 > Nr - 1 : i1 -= (Nr - 1)
-            if i2 < 0 : i2 += Nr - 1
-            elif i2 > Nr - 1 : i2 -= (Nr - 1)
-
-            if np.logical_xor(mask[i1], mask[i2]):
-                X1 = r[i1]
-                X2 = r[i2]
-
-                phi1 = sliced[i1] - threshold
-                phi2 = sliced[i2] - threshold
-
-                alpha = phi1 / (phi1 - phi2)
-                xC = X1 + alpha * (X2 - X1)
-
-                Curve.append(xC)
-
-    return np.asarray(Curve)
-
 
 
 

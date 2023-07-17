@@ -1,5 +1,5 @@
 from Coefficient_Matrix import CoefficientMatrix
-import matplotlib; 
+import matplotlib
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -37,8 +37,8 @@ class Wildfire:
         # Dimensional constants used in the model
         self.__thermaldiffusivity = 0.2136
         self.__preexponentialfactor = 0.1625
-        self.__windspeed_x = np.zeros(self.__timesteps) # * np.sin(np.arange(0, np.pi * 2, np.pi * 2 / self.__timesteps))
-        self.__windspeed_y = np.zeros(self.__timesteps)  # * np.cos(np.arange(0, np.pi * 2, np.pi * 2 / self.__timesteps))
+        self.__windspeed_x = np.zeros(self.__timesteps)
+        self.__windspeed_y = np.zeros(self.__timesteps)
         self.__temperaturerisepersecond = 187.93
         self.__scaledheattransfercoefficient = 4.8372e-5
         self.__beta = 558.49
@@ -110,11 +110,6 @@ class Wildfire:
         self.Mat = CoefficientMatrix(orderDerivative=self.__firstderivativeOrder, Nxi=self.__Nxi,
                                      Neta=self.__Neta, periodicity='Periodic', dx=dx, dy=dy)
 
-        # if self.__Neta != 1:
-        #     plt.ion()
-        #     fig = plt.figure()
-        #     ax = fig.add_subplot(111)
-
         # Time loop
         for n in range(self.__timesteps):
             # Main Runge-Kutta 4 solver step
@@ -131,20 +126,6 @@ class Wildfire:
             if self.__Neta != 1:
                 print('Time step: ', n)
 
-                # COM_X = np.sum(T * self.X_2D) / (np.sum(T))
-                # COM_Y = np.sum(T * self.Y_2D) / (np.sum(T))
-                #
-                # ax.pcolormesh(self.X_2D, self.Y_2D, T, cmap='YlOrRd', linewidth=0, antialiased=False)  # YlOrRd
-                # ax.plot(COM_X, COM_Y, marker="o", markersize=5, markeredgecolor="red", markerfacecolor="red")
-                #
-                # # # ax.plot(self.X, T[:, len(self.Y) // 2], color="black", linestyle="-")
-                # # # ax.set_ylim(bottom=np.min(T), top=np.max(T))
-                # # # ax.set_xlabel(r"$X$")
-                # # # ax.set_ylabel(r"$T$")
-                #
-                # plt.draw()
-                # plt.pause(0.02)
-                # ax.cla()
         pass
 
     # Private function for this class
@@ -156,7 +137,7 @@ class Wildfire:
         # the arrhenius term
         arrhenius_activate = (T > 0).astype(int)
         # This parameter is for preventing division by 0
-        epsilon = 0.00001
+        epsilon = 0.000001
 
         # Coefficients for the terms in the equation
         Coeff_diff = self.__thermaldiffusivity
