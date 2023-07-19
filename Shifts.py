@@ -15,7 +15,6 @@ def Shifts_1D(SnapShotMatrix, X, t):
     NumComovingFrames = 3
     delta = np.zeros((NumComovingFrames, Nt), dtype=float)
 
-    gradVar = np.zeros(Nx, dtype=float)
     FlameFrontLeftPos = np.zeros(Nt, dtype=float)
     FlameFrontRightPos = np.zeros(Nt, dtype=float)
     for n in range(Nt):
@@ -29,6 +28,13 @@ def Shifts_1D(SnapShotMatrix, X, t):
         delta[0, n] = - abs(FlameFrontLeftPos[n] - refvalue_leftfront)
         delta[1, n] = 0
         delta[2, n] = abs(FlameFrontRightPos[n] - refvalue_rightfront)
+
+    # # Correction for the very first time step. As the suppy mass fraction is 1 at the 0th time step therefore the
+    # # shifts cannot be computed for that time step therefore we assume the shifts at 0th time step to be equal to the
+    # # 1st time step.
+    # delta[0, 0] = delta[0, 1]
+    # delta[1, 0] = delta[1, 1]
+    # delta[2, 0] = delta[2, 1]
 
     deltaold = delta.copy()
 

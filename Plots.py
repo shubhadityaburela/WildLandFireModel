@@ -1,5 +1,5 @@
 import numpy as np
-import matplotlib;
+import matplotlib
 
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
@@ -9,6 +9,7 @@ from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import moviepy.video.io.ImageSequenceClip
 import glob
+import jax.numpy as jnp
 
 plt.rcParams.update({
     "text.usetex": True,
@@ -50,59 +51,48 @@ def save_fig(filepath, figure=None, **kwargs):
 
 
 class PlotFlow:
-    def __init__(self, Model: str, SnapMat, X, Y, X_2D, Y_2D, t) -> None:
+    def __init__(self, X, Y, t) -> None:
 
-        self.__Nx = int(np.size(X))
-        self.__Ny = int(np.size(Y))
-        self.__Nt = int(np.size(t))
+        self.Nx = int(np.size(X))
+        self.Ny = int(np.size(Y))
+        self.Nt = int(np.size(t))
 
-        self.__vmax_T = np.max(SnapMat[:self.__Nx, :])
-        self.__vmin_T = np.min(SnapMat[:self.__Nx, :])
-        self.__vmax_S = np.max(SnapMat[self.__Nx:, :])
-        self.__vmin_S = np.min(SnapMat[self.__Nx:, :])
+        self.X = X
+        self.Y = Y
+        self.t = t
 
-        # Prepare the space-time grid
-        [self.__X_grid, self.__t_grid] = np.meshgrid(X, t)
-        self.__X_grid = self.__X_grid.T
-        self.__t_grid = self.__t_grid.T
+        # Prepare the space-time grid for 1D plots
+        self.X_1D_grid, self.t_grid = np.meshgrid(X, t)
+        self.X_1D_grid = self.X_1D_grid.T
+        self.t_grid = self.t_grid.T
 
-        self.__X_2D = X_2D
-        self.__Y_2D = Y_2D
+        # Prepare the space grid for 2D plots
+        self.X_2D_grid, self.Y_2D_grid = np.meshgrid(X, Y)
+        self.X_2D_grid = np.transpose(self.X_2D_grid)
+        self.Y_2D_grid = np.transpose(self.Y_2D_grid)
 
-        # Call the plot function for type of plots
-        if Model == 'FOM':
-            self.__FOM(SnapMat)
-        elif Model == 'SnapShotPOD':
-            self.__SnapShotPOD(SnapMat)
-        elif Model == 'FTR':
-            self.__FTR(SnapMat)
-        elif Model == 'sPOD':
-            self.__sPOD(SnapMat)
-        elif Model == 'srPCA':
-            self.__srPCA(SnapMat)
-
-    def __FOM(self, SnapMat):
-        immpath = "./plots/FOM_1D/"
+    def plot1D(self, Q):
+        immpath = "./plots/FOM_1D/primal/"
         os.makedirs(immpath, exist_ok=True)
 
-        T = SnapMat[:self.__Nx, :]
-        S = SnapMat[self.__Nx:, :]
+        T = Q[:self.Nx, :]
+        S = Q[self.Nx:, :]
 
         # Plot the snapshot matrix for conserved variables for original model
         fig = plt.figure(figsize=(10, 5))
         ax1 = fig.add_subplot(121)
-        im1 = ax1.pcolormesh(self.__X_grid, self.__t_grid, T, cmap='YlOrRd')
+        im1 = ax1.pcolormesh(self.X_1D_grid, self.t_grid, T, cmap='YlOrRd')  # , vmin=0, vmax=jnp.max(T))
         ax1.axis('off')
-        ax1.axis('scaled')
+        # ax1.axis('scaled')
         ax1.set_title(r"$T(x, t)$")
         divider = make_axes_locatable(ax1)
         cax = divider.append_axes('right', size='10%', pad=0.08)
         fig.colorbar(im1, cax=cax, orientation='vertical')
 
         ax2 = fig.add_subplot(122)
-        im2 = ax2.pcolormesh(self.__X_grid, self.__t_grid, S, cmap='YlGn')
+        im2 = ax2.pcolormesh(self.X_1D_grid, self.t_grid, S, cmap='YlGn')
         ax2.axis('off')
-        ax2.axis('scaled')
+        # ax2.axis('scaled')
         ax2.set_title(r"$S(x, t)$")
         divider = make_axes_locatable(ax2)
         cax = divider.append_axes('right', size='10%', pad=0.08)
@@ -111,453 +101,76 @@ class PlotFlow:
         fig.supylabel(r"time $t$")
         fig.supxlabel(r"space $x$")
 
-        save_fig(filepath=immpath + 'Variable', figure=fig)
+        save_fig(filepath=immpath + 'Var', figure=fig)
 
-        print('All the plots for the ORIGINAL MODEL saved')
+    def plot2D(self, Q, save_plot=False, plot_every=10, plot_at_all=False):
+        Q = np.reshape(np.transpose(Q), newshape=[self.Nt, 2, self.Nx, self.Ny], order="F")
 
-    def __SnapShotPOD(self, SnapMat):
-        # plot the snapshot matrix for the conserved variables for the snapshot POD model
-        T = SnapMat[:self.__Nx, :]
-        S = SnapMat[self.__Nx:, :]
-        fig, ax = plt.subplots(1, 2, num=4)
-        plt.rc('text', usetex=True)
-        plt.rc('font', family='serif')
-        ax[0].pcolormesh(self.__X_grid, self.__t_grid, T)
-        ax[0].axis('off')
-        ax[0].axis('scaled')
-        ax[0].set_title('Temperature', fontsize=14)
-        ax[1].pcolormesh(self.__X_grid, self.__t_grid, S)
-        ax[1].axis('off')
-        ax[1].axis('scaled')
-        ax[1].set_title('Suppy mass fraction', fontsize=14)
-        save_fig(filepath=impath + 'Variable_SnapPOD', figure=fig)
+        if plot_at_all:
+            if not save_plot:
+                plt.ion()
+                fig, ax = plt.subplots(1, 2)
+                for n in range(self.Nt):
+                    if n % plot_every == 0:
+                        min_T = np.min(Q[n, 0, :, :])
+                        max_T = np.max(Q[n, 0, :, :])
+                        min_S = np.min(Q[n, 1, :, :])
+                        max_S = np.max(Q[n, 1, :, :])
+                        ax[0].pcolormesh(self.X_2D_grid, self.Y_2D_grid, np.squeeze(Q[n, 0, :, :]), vmin=min_T, vmax=max_T, cmap='YlOrRd')
+                        ax[0].axis('scaled')
+                        ax[0].set_title("T")
+                        ax[1].pcolormesh(self.X_2D_grid, self.Y_2D_grid, np.squeeze(Q[n, 1, :, :]), vmin=min_S, vmax=max_S, cmap='YlGn')
+                        ax[1].axis('scaled')
+                        ax[1].set_title("S")
 
-        print('All the plots for the SNAPSHOT POD MODEL saved')
+                        fig.supylabel(r"$Y$")
+                        fig.supxlabel(r"$X$")
 
-    def __FTR(self, SnapMat):
-        # Plot the snapshot matrix for conserved variables for FTR
-        T = SnapMat[:self.__Nx, :]
-        S = SnapMat[self.__Nx:, :]
-        fig, ax = plt.subplots(1, 2, num=5)
-        plt.rc('text', usetex=True)
-        plt.rc('font', family='serif')
-        ax[0].pcolormesh(self.__X_grid, self.__t_grid, T)
-        ax[0].axis('off')
-        ax[0].axis('scaled')
-        ax[0].set_title('Temperature', fontsize=14)
-        ax[1].pcolormesh(self.__X_grid, self.__t_grid, S)
-        ax[1].axis('off')
-        ax[1].axis('scaled')
-        ax[1].set_title('Suppy mass fraction', fontsize=14)
-        save_fig(filepath=impath + 'Variable_FTR', figure=fig)
+                        plt.draw()
+                        plt.pause(0.5)
+                        ax[0].cla()
+                        ax[1].cla()
+            else:
+                immpath = "./plots/FOM_2D/primal/"
+                os.makedirs(immpath, exist_ok=True)
+                for n in range(self.Nt):
+                    if n % plot_every == 0:
+                        min_T = np.min(Q[n, 0, :, :])
+                        max_T = np.max(Q[n, 0, :, :])
+                        min_S = np.min(Q[n, 1, :, :])
+                        max_S = np.max(Q[n, 1, :, :])
 
-        print('All the plots for the FTR MODEL saved')
+                        fig = plt.figure(figsize=(10, 5))
+                        ax1 = fig.add_subplot(121)
+                        im1 = ax1.pcolormesh(self.X_2D_grid, self.Y_2D_grid, np.squeeze(Q[n, 0, :, :]), vmin=min_T, vmax=max_T, cmap='YlOrRd')
+                        ax1.axis('scaled')
+                        ax1.set_title(r"$T(x, y)$")
+                        ax1.set_yticks([], [])
+                        ax1.set_xticks([], [])
+                        divider = make_axes_locatable(ax1)
+                        cax = divider.append_axes('right', size='10%', pad=0.08)
+                        fig.colorbar(im1, cax=cax, orientation='vertical')
 
-    def __sPOD(self, SnapMat):
-        T_f1 = SnapMat[0][:self.__Nx, :]
-        S_f1 = SnapMat[0][self.__Nx:, :]
-        T_f2 = SnapMat[1][:self.__Nx, :]
-        S_f2 = SnapMat[1][self.__Nx:, :]
-        T_f3 = SnapMat[2][:self.__Nx, :]
-        S_f3 = SnapMat[2][self.__Nx:, :]
-        # Plot the snapshot matrix for conserved variables for sPOD
-        font1 = {'family': 'serif', 'color': 'blue', 'size': 10}
-        font2 = {'family': 'serif', 'color': 'darkred', 'size': 15}
+                        ax2 = fig.add_subplot(122)
+                        im2 = ax2.pcolormesh(self.X_2D_grid, self.Y_2D_grid, np.squeeze(Q[n, 1, :, :]), vmin=min_S, vmax=max_S, cmap='YlGn')
+                        ax2.axis('scaled')
+                        ax2.set_title(r"$S(x, y)$")
+                        ax2.set_yticks([], [])
+                        ax2.set_xticks([], [])
+                        divider = make_axes_locatable(ax2)
+                        cax = divider.append_axes('right', size='10%', pad=0.08)
+                        fig.colorbar(im2, cax=cax, orientation='vertical')
 
-        fig, ax = plt.subplots(1, 3, num=6)
-        ax[0].pcolormesh(self.__X_grid, self.__t_grid, T_f1, vmin=self.__vmin_T, vmax=self.__vmax_T)
-        ax[0].axis('scaled')
-        ax[0].axis('off')
-        ax[0].set_title('Frame 1')
-        ax[1].pcolormesh(self.__X_grid, self.__t_grid, T_f2, vmin=self.__vmin_T, vmax=self.__vmax_T)
-        ax[1].axis('scaled')
-        ax[1].axis('off')
-        ax[1].set_title('Frame 2')
-        ax[2].pcolormesh(self.__X_grid, self.__t_grid, T_f3, vmin=self.__vmin_T, vmax=self.__vmax_T)
-        ax[2].axis('scaled')
-        ax[2].axis('off')
-        ax[2].set_title('Frame 3')
-        fig.tight_layout()
-        save_fig(filepath=impath + 'sPOD_Frames_for_Temperature', figure=fig)
+                        fig.supylabel(r"space $y$")
+                        fig.supxlabel(r"space $x$")
 
-        fig, ax = plt.subplots(1, 3, num=7)
-        ax[0].pcolormesh(self.__X_grid, self.__t_grid, S_f1, vmin=self.__vmin_S, vmax=self.__vmax_S)
-        ax[0].axis('scaled')
-        ax[0].axis('off')
-        ax[0].set_title('Frame 1')
-        ax[1].pcolormesh(self.__X_grid, self.__t_grid, S_f2, vmin=self.__vmin_S, vmax=self.__vmax_S)
-        ax[1].axis('scaled')
-        ax[1].axis('off')
-        ax[1].set_title('Frame 2')
-        ax[2].pcolormesh(self.__X_grid, self.__t_grid, S_f3, vmin=self.__vmin_S, vmax=self.__vmax_S)
-        ax[2].axis('scaled')
-        ax[2].axis('off')
-        ax[2].set_title('Frame 3')
-        fig.tight_layout()
-        save_fig(filepath=impath + 'sPOD_Frames_for_SupplyMassFraction', figure=fig)
+                        fig.savefig(immpath + "Var" + str(n), dpi=300, transparent=True)
+                        fig.savefig(immpath + "Var" + str(n), format="pdf", bbox_inches="tight", transparent=True)
+                        plt.close(fig)
 
-        print('All the plots for the SHIFTED POD MODEL saved')
-
-    def __srPCA(self, SnapMat):
-
-        qmin = np.min(SnapMat[0])
-        qmax = np.max(SnapMat[0])
-        fig, axs = plt.subplots(1, 4, num=8, sharey=True, figsize=(15, 6))
-        # 1. frame
-        axs[0].pcolormesh(self.__X_grid, self.__t_grid, SnapMat[1], vmin=qmin, vmax=qmax)
-        axs[0].set_yticks([], [])
-        axs[0].set_xticks([], [])
-        # 2. frame
-        axs[1].pcolormesh(self.__X_grid, self.__t_grid, SnapMat[2], vmin=qmin, vmax=qmax)
-        axs[1].set_yticks([], [])
-        axs[1].set_xticks([], [])
-        # 3. frame
-        axs[2].pcolormesh(self.__X_grid, self.__t_grid, SnapMat[3], vmin=qmin, vmax=qmax)
-        axs[2].set_yticks([], [])
-        axs[2].set_xticks([], [])
-        # Reconstruction
-        axs[3].pcolormesh(self.__X_grid, self.__t_grid, SnapMat[4], vmin=qmin, vmax=qmax)
-        axs[3].set_yticks([], [])
-        axs[3].set_xticks([], [])
-        plt.tight_layout()
-
-        save_fig(filepath=impath + "frames_sPOD", figure=fig)
-
-        print('All the plots for the SHIFTED rPCA MODEL saved')
-
-
-def PlotFOM2D(SnapMat, X, Y, X_2D, Y_2D, t, interactive=False, close_up=False, plot_every=10, plot_at_all=False):
-    Nx = int(np.size(X))
-    Ny = int(np.size(Y))
-    Nt = int(np.size(t))
-    SnapMat = np.reshape(np.transpose(SnapMat), newshape=[Nt, 2, Nx, Ny], order="F")
-
-    if plot_at_all:
-        # Plot a close up view (plot 50 percent of the whole domain as default)
-        if close_up:
-            s_x = int(Nx // 4)
-            e_x = 3 * int(Nx // 4)
-            s_y = int(Ny // 4)
-            e_y = 3 * int(Ny // 4)
-            X = X[s_x:e_x]
-            Y = Y[s_y:e_y]
-            Nx = len(X)
-            Ny = len(Y)
-            X_2D, Y_2D = np.meshgrid(X, Y)
-            X_2D, Y_2D = np.transpose(X_2D), np.transpose(Y_2D)
-            SnapMat = SnapMat[:, :, s_x:e_x, s_y:e_y]
-
-        if interactive:
-            plt.ion()
-            fig, ax = plt.subplots(1, 2)
-            for n in range(Nt):
-                if n % plot_every == 0:
-                    min_T = np.min(SnapMat[n, 0, :, :])
-                    max_T = np.max(SnapMat[n, 0, :, :])
-                    min_S = np.min(SnapMat[n, 1, :, :])
-                    max_S = np.max(SnapMat[n, 1, :, :])
-                    ax[0].pcolormesh(X_2D, Y_2D, np.squeeze(SnapMat[n, 0, :, :]), vmin=min_T, vmax=max_T, cmap='YlOrRd')
-                    ax[0].axis('scaled')
-                    ax[0].set_title("T")
-                    ax[1].pcolormesh(X_2D, Y_2D, np.squeeze(SnapMat[n, 1, :, :]), vmin=min_S, vmax=max_S, cmap='YlGn')
-                    ax[1].axis('scaled')
-                    ax[1].set_title("S")
-
-                    fig.supylabel(r"$Y$")
-                    fig.supxlabel(r"$X$")
-
-                    plt.draw()
-                    plt.pause(0.5)
-                    ax[0].cla()
-                    ax[1].cla()
+                fps = 1
+                image_files = sorted(glob.glob(os.path.join(immpath, "*.png")), key=os.path.getmtime)
+                clip = moviepy.video.io.ImageSequenceClip.ImageSequenceClip(image_files, fps=fps)
+                clip.write_videofile(immpath + "Var" + '.mp4')
         else:
-            immpath = "./plots/FOM_2D/mesh/"
-            os.makedirs(immpath, exist_ok=True)
-            for n in range(Nt):
-                if n % plot_every == 0:
-                    min_T = np.min(SnapMat[n, 0, :, :])
-                    max_T = np.max(SnapMat[n, 0, :, :])
-                    min_S = np.min(SnapMat[n, 1, :, :])
-                    max_S = np.max(SnapMat[n, 1, :, :])
-
-                    fig = plt.figure(figsize=(10, 5))
-                    ax1 = fig.add_subplot(121)
-                    im1 = ax1.pcolormesh(X_2D, Y_2D, np.squeeze(SnapMat[n, 0, :, :]), vmin=min_T, vmax=max_T, cmap='YlOrRd')
-                    ax1.axis('scaled')
-                    ax1.set_title(r"$T(x, y)$")
-                    ax1.set_yticks([], [])
-                    ax1.set_xticks([], [])
-                    divider = make_axes_locatable(ax1)
-                    cax = divider.append_axes('right', size='10%', pad=0.08)
-                    fig.colorbar(im1, cax=cax, orientation='vertical')
-
-                    ax2 = fig.add_subplot(122)
-                    im2 = ax2.pcolormesh(X_2D, Y_2D, np.squeeze(SnapMat[n, 1, :, :]), vmin=min_S, vmax=max_S, cmap='YlGn')
-                    ax2.axis('scaled')
-                    ax2.set_title(r"$S(x, y)$")
-                    ax2.set_yticks([], [])
-                    ax2.set_xticks([], [])
-                    divider = make_axes_locatable(ax2)
-                    cax = divider.append_axes('right', size='10%', pad=0.08)
-                    fig.colorbar(im2, cax=cax, orientation='vertical')
-
-                    fig.supylabel(r"space $y$")
-                    fig.supxlabel(r"space $x$")
-
-                    fig.savefig(immpath + "Var" + str(n), dpi=300, transparent=True)
-                    fig.savefig(immpath + "Var" + str(n), format="pdf", bbox_inches="tight", transparent=True)
-                    plt.close(fig)
-
-            fps = 1
-            image_files = sorted(glob.glob(os.path.join(immpath, "*.png")), key=os.path.getmtime)
-            clip = moviepy.video.io.ImageSequenceClip.ImageSequenceClip(image_files, fps=fps)
-            clip.write_videofile(immpath + "Var_2D" + '.mp4')
-    else:
-        pass
-
-    pass
-
-
-def PlotROM2D(SnapMat, X, Y, X_2D, Y_2D, t, var_name='T', type_plot='2D', interactive=False, close_up=False,
-              plot_every=10, cmap=None):
-    q = SnapMat[0]
-    qframe0_lab = SnapMat[1]
-    qframe1_lab = SnapMat[2]
-    qtilde = SnapMat[3]
-    q_POD = SnapMat[4]
-
-    Nx = len(X)
-    Ny = len(Y)
-    Nt = len(t)
-
-    # Plot a close up view (plot 50 percent of the whole domain as default)
-    if close_up:
-        s_x = int(Nx // 4)
-        e_x = 3 * int(Nx // 4)
-        s_y = int(Ny // 4)
-        e_y = 3 * int(Ny // 4)
-        X = X[s_x:e_x]
-        Y = Y[s_y:e_y]
-        Nx = len(X)
-        Ny = len(Y)
-        X_2D, Y_2D = np.meshgrid(X, Y)
-        X_2D, Y_2D = np.transpose(X_2D), np.transpose(Y_2D)
-        q = q[s_x:e_x, s_y:e_y, :, :]
-        qframe0_lab = qframe0_lab[s_x:e_x, s_y:e_y, :, :]
-        qframe1_lab = qframe1_lab[s_x:e_x, s_y:e_y, :, :]
-        qtilde = qtilde[s_x:e_x, s_y:e_y, :, :]
-        q_POD = q_POD[s_x:e_x, s_y:e_y, :, :]
-
-    if interactive:
-        if type_plot == "1D":
-            plt.ion()
-            fig = plt.figure()
-            ax = fig.add_subplot(111)
-            for n in range(Nt):
-                if n % plot_every == 0:
-                    min = np.min(q[..., 0, n])
-                    max = np.max(q[..., 0, n])
-                    ax.plot(X, np.squeeze(q[:, Ny // 2, 0, n]), color="green", linestyle="-", label='Actual')
-                    ax.plot(X, np.squeeze(qframe0_lab[:, Ny // 2, 0, n]), color="blue", linestyle="--", label='Frame 1')
-                    ax.plot(X, np.squeeze(qframe1_lab[:, Ny // 2, 0, n]), color="red", linestyle="--", label='Frame 2')
-                    ax.plot(X, np.squeeze(qtilde[:, Ny // 2, 0, n]), color="yellow", linestyle="-.", label='sPOD Recon')
-                    ax.plot(X, np.squeeze(q_POD[:, Ny // 2, 0, n]), color="black", linestyle="-.", label='POD Recon')
-                    ax.set_ylim(bottom=min - 100, top=max + 300)
-                    ax.set_xlabel(r"$X$")
-                    ax.set_ylabel(r"$" + str(var_name) + "$")
-                    ax.set_title(r"$" + str(var_name) + "_{" + str(n) + "}$")
-                    ax.legend()
-                    ax.grid()
-                    plt.draw()
-                    plt.pause(0.5)
-                    ax.cla()
-        elif type_plot == "2D":
-            plt.ion()
-            fig, ax = plt.subplots(2, 2, sharey=True, sharex=True)
-            for n in range(Nt):
-                if n % plot_every == 0:
-                    min = np.min(q[..., 0, n])
-                    max = np.max(q[..., 0, n])
-                    ax[0, 0].pcolormesh(X_2D, Y_2D, np.squeeze(q[:, :, 0, n]), vmin=min, vmax=max, cmap=cmap)
-                    ax[0, 0].set_title(r"$q^{actual}$")
-                    ax[0, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qtilde[:, :, 0, n]), vmin=min, vmax=max, cmap=cmap)
-                    ax[0, 1].set_title(r"$q^{recon}$")
-                    ax[1, 0].pcolormesh(X_2D, Y_2D, np.squeeze(qframe0_lab[:, :, 0, n]), vmin=min, vmax=max, cmap=cmap)
-                    ax[1, 0].set_title(r"$q^{frame 1}_{lab}$")
-                    ax[1, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qframe1_lab[:, :, 0, n]), vmin=min, vmax=max, cmap=cmap)
-                    ax[1, 1].set_title(r"$q^{frame 2}_{lab}$")
-
-                    fig.supylabel(r"$Y$")
-                    fig.supxlabel(r"$X$")
-                    fig.suptitle(r"$" + str(var_name) + "_{" + str(n) + "}$")
-
-                    plt.draw()
-                    plt.pause(0.5)
-                    ax[0, 0].cla()
-                    ax[0, 1].cla()
-                    ax[1, 0].cla()
-                    ax[1, 1].cla()
-        elif type_plot == "mixed":
-            plt.ion()
-            fig, ax = plt.subplots(2, 3)
-            for n in range(Nt):
-                if n % plot_every == 0:
-                    min = np.min(q[..., 0, n])
-                    max = np.max(q[..., 0, n])
-
-                    ax[0, 0].pcolormesh(X_2D, Y_2D, np.squeeze(qtilde[:, :, 0, n]), vmin=min, vmax=max, cmap=cmap)
-                    ax[0, 0].axis('scaled')
-                    ax[0, 0].set_title("sPOD")
-                    ax[0, 0].grid()
-                    ax[0, 0].set_yticks([], [])
-                    ax[0, 0].set_xticks([], [])
-
-                    ax[0, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qframe0_lab[:, :, 0, n]), vmin=min, vmax=max, cmap=cmap)
-                    ax[0, 1].axis('scaled')
-                    ax[0, 1].set_title("Frame 1")
-                    ax[0, 1].set_yticks([], [])
-                    ax[0, 1].set_xticks([], [])
-
-                    ax[0, 2].pcolormesh(X_2D, Y_2D, np.squeeze(qframe1_lab[:, :, 0, n]), vmin=min, vmax=max, cmap=cmap)
-                    ax[0, 2].axis('scaled')
-                    ax[0, 2].set_title("Frame 2")
-                    ax[0, 2].set_yticks([], [])
-                    ax[0, 2].set_xticks([], [])
-
-                    ax[1, 0].plot(X, np.squeeze(q[:, Ny // 2, 0, n]), color="green", linestyle="-", label='Actual')
-                    ax[1, 0].plot(X, np.squeeze(qtilde[:, Ny // 2, 0, n]), color="yellow", linestyle="--", label='sPOD')
-                    ax[1, 0].plot(X, np.squeeze(q_POD[:, Ny // 2, 0, n]), color="black", linestyle="-.", label='POD')
-                    ax[1, 0].set_ylim(bottom=min - 100, top=max + 300)
-                    ax[1, 0].legend()
-                    ax[1, 0].grid()
-
-                    ax[1, 1].plot(X, np.squeeze(q[:, Ny // 2, 0, n]), color="green", linestyle="-", label='Actual')
-                    ax[1, 1].plot(X, np.squeeze(qframe0_lab[:, Ny // 2, 0, n]), color="blue", linestyle="--",
-                                  label='Frame 1')
-                    ax[1, 1].set_ylim(bottom=min - 100, top=max + 300)
-                    ax[1, 1].legend()
-                    ax[1, 1].grid()
-
-                    ax[1, 2].plot(X, np.squeeze(q[:, Ny // 2, 0, n]), color="green", linestyle="-", label='Actual')
-                    ax[1, 2].plot(X, np.squeeze(qframe1_lab[:, Ny // 2, 0, n]), color="red", linestyle="--",
-                                  label='Frame 2')
-                    ax[1, 2].set_ylim(bottom=min - 100, top=max + 300)
-                    ax[1, 2].legend()
-                    ax[1, 2].grid()
-
-                    fig.suptitle(r"$" + str(var_name) + "_{" + str(n) + "}$")
-
-                    plt.draw()
-                    plt.pause(0.5)
-                    ax[0, 0].cla()
-                    ax[0, 1].cla()
-                    ax[0, 2].cla()
-                    ax[1, 0].cla()
-                    ax[1, 1].cla()
-                    ax[1, 2].cla()
-    else:
-        if type_plot == "1D":
-            immpath = "./plots/srPCA_2D/cs/"
-            os.makedirs(immpath, exist_ok=True)
-            for n in range(Nt):
-                if n % plot_every == 0:
-                    min = np.min(q[..., 0, n])
-                    max = np.max(q[..., 0, n])
-                    fig, ax = plt.subplots(1, 1)
-                    ax.plot(X, np.squeeze(q[:, Ny // 2, 0, n]), color="green", linestyle="-", label='Actual')
-                    ax.plot(X, np.squeeze(qframe0_lab[:, Ny // 2, 0, n]), color="blue", linestyle="--", label='Frame 1')
-                    ax.plot(X, np.squeeze(qframe1_lab[:, Ny // 2, 0, n]), color="red", linestyle="--", label='Frame 2')
-                    ax.plot(X, np.squeeze(qtilde[:, Ny // 2, 0, n]), color="yellow", linestyle="-.", label='sPOD')
-                    ax.plot(X, np.squeeze(q_POD[:, Ny // 2, 0, n]), color="black", linestyle="-.", label='POD')
-                    ax.set_ylim(bottom=min - 100, top=max + 300)
-                    ax.set_xlabel("x")
-                    ax.set_ylabel(str(var_name))
-                    ax.legend()
-                    ax.grid()
-                    save_fig(filepath=immpath + str(var_name) + "-cs-" + str(n), figure=fig)
-                    plt.close(fig)
-        elif type_plot == "2D":
-            immpath = "./plots/srPCA_2D/mesh/"
-            os.makedirs(immpath, exist_ok=True)
-            for n in range(Nt):
-                if n % plot_every == 0:
-                    min = np.min(q[..., 0, n])
-                    max = np.max(q[..., 0, n])
-                    fig, ax = plt.subplots(1, 3, figsize=(15, 5))
-                    ax[0].pcolormesh(X_2D, Y_2D, np.squeeze(qtilde[:, :, 0, n]), vmin=min, vmax=max)
-                    ax[0].axis('scaled')
-                    ax[0].set_title("sPOD")
-                    ax[0].set_yticks([], [])
-                    ax[0].set_xticks([], [])
-                    ax[1].pcolormesh(X_2D, Y_2D, np.squeeze(qframe0_lab[:, :, 0, n]), vmin=min, vmax=max)
-                    ax[1].axis('scaled')
-                    ax[1].set_title("Frame 1")
-                    ax[1].set_yticks([], [])
-                    ax[1].set_xticks([], [])
-                    ax[2].pcolormesh(X_2D, Y_2D, np.squeeze(qframe1_lab[:, :, 0, n]), vmin=min, vmax=max)
-                    ax[2].axis('scaled')
-                    ax[2].set_title("Frame 2")
-                    ax[2].set_yticks([], [])
-                    ax[2].set_xticks([], [])
-
-                    fig.savefig(immpath + str(var_name) + "-mesh-" + str(n), dpi=600, transparent=True)
-                    plt.close(fig)
-        elif type_plot == "mixed":
-            immpath = "./plots/srPCA_2D/mixed/"
-            os.makedirs(immpath, exist_ok=True)
-            for n in range(Nt):
-                if n % plot_every == 0:
-                    min = np.min(q[..., 0, n])
-                    max = np.max(q[..., 0, n])
-                    fig, ax = plt.subplots(2, 3, figsize=(15, 11))
-                    ax[0, 0].pcolormesh(X_2D, Y_2D, np.squeeze(qtilde[:, :, 0, n]), vmin=min, vmax=max, cmap=cmap)
-                    ax[0, 0].axis('scaled')
-                    ax[0, 0].set_title("sPOD")
-                    ax[0, 0].axhline(y=Y[Ny // 2 - 1], linestyle='--', color='g')
-                    ax[0, 0].set_yticks([], [])
-                    ax[0, 0].set_xticks([], [])
-
-                    ax[0, 1].pcolormesh(X_2D, Y_2D, np.squeeze(qframe0_lab[:, :, 0, n]), vmin=min, vmax=max, cmap=cmap)
-                    ax[0, 1].axis('scaled')
-                    ax[0, 1].set_title("Frame 1")
-                    ax[0, 1].axhline(y=Y[Ny // 2 - 1], linestyle='--', color='g')
-                    ax[0, 1].set_yticks([], [])
-                    ax[0, 1].set_xticks([], [])
-
-                    ax[0, 2].pcolormesh(X_2D, Y_2D, np.squeeze(qframe1_lab[:, :, 0, n]), vmin=min, vmax=max, cmap=cmap)
-                    ax[0, 2].axis('scaled')
-                    ax[0, 2].set_title("Frame 2")
-                    ax[0, 2].axhline(y=Y[Ny // 2 - 1], linestyle='--', color='g')
-                    ax[0, 2].set_yticks([], [])
-                    ax[0, 2].set_xticks([], [])
-
-                    ax[1, 0].plot(X, np.squeeze(q[:, Ny // 2, 0, n]), color="green", linestyle="-", label='actual')
-                    ax[1, 0].plot(X, np.squeeze(qtilde[:, Ny // 2, 0, n]), color="yellow", linestyle="--", label='sPOD')
-                    ax[1, 0].plot(X, np.squeeze(q_POD[:, Ny // 2, 0, n]), color="black", linestyle="-.", label='POD')
-                    ax[1, 0].set_ylim(bottom=min - max/10, top=max + max/10)
-                    ax[1, 0].legend()
-                    ax[1, 0].grid()
-
-                    ax[1, 1].plot(X, np.squeeze(q[:, Ny // 2, 0, n]), color="green", linestyle="-", label='actual')
-                    ax[1, 1].plot(X, np.squeeze(qframe0_lab[:, Ny // 2, 0, n]), color="blue", linestyle="--",
-                                  label='Frame 1')
-                    ax[1, 1].set_ylim(bottom=min - max/10, top=max + max/10)
-                    ax[1, 1].legend()
-                    ax[1, 1].grid()
-
-                    ax[1, 2].plot(X, np.squeeze(q[:, Ny // 2, 0, n]), color="green", linestyle="-", label='actual')
-                    ax[1, 2].plot(X, np.squeeze(qframe1_lab[:, Ny // 2, 0, n]), color="red", linestyle="--",
-                                  label='Frame 2')
-                    ax[1, 2].set_ylim(bottom=min - max/10, top=max + max/10)
-                    ax[1, 2].legend()
-                    ax[1, 2].grid()
-
-                    fig.savefig(immpath + str(var_name) + "-mixed-" + str(n), dpi=600, transparent=True)
-                    plt.close(fig)
-
-        fps = 1
-        image_files = sorted(glob.glob(os.path.join(immpath, "*.png")), key=os.path.getmtime)
-        clip = moviepy.video.io.ImageSequenceClip.ImageSequenceClip(image_files, fps=fps)
-        clip.write_videofile(immpath + str(var_name) + '.mp4')
-
-    pass
+            pass

@@ -18,59 +18,81 @@ from transforms import transforms
 def srPCA_latest_1D(q, delta, X, t, spod_iter):
     Nx = np.size(X)
     Nt = np.size(t)
+
     data_shape = [Nx, 1, 1, Nt]
     dx = X[1] - X[0]
     L = [X[-1]]
 
     # Create the transformations
-    trafo_1 = transforms(data_shape, L + dx, shifts=delta[0],
+    trafo_1 = transforms(data_shape, L, shifts=delta[0],
                          dx=[dx],
                          use_scipy_transform=False,
                          interp_order=5)
-    trafo_2 = transforms(data_shape, L + dx, shifts=delta[1],
+    trafo_2 = transforms(data_shape, L, shifts=delta[1],
                          trafo_type="identity", dx=[dx],
                          use_scipy_transform=False,
                          interp_order=5)
-    trafo_3 = transforms(data_shape, L + dx, shifts=delta[2],
+    trafo_3 = transforms(data_shape, L, shifts=delta[2],
                          dx=[dx],
                          use_scipy_transform=False,
                          interp_order=5)
 
-    # Transformation interpolation error
-    interp_err = give_interpolation_error(np.reshape(q, data_shape), trafo_1)
-    print("Transformation interpolation error =  %4.4e " % interp_err)
-
     # Run the algorithm
     trafos = [trafo_1, trafo_2, trafo_3]
-    qmat = np.reshape(q, [-1, Nt])
-    [N, M] = np.shape(qmat)
-    mu0 = N * M / (4 * np.sum(np.abs(qmat))) * 0.001
-    lambd0 = 1 / np.sqrt(np.maximum(M, N)) * 100
-    ret = shifted_rPCA(qmat, trafos, nmodes_max=60, eps=1e-16, Niter=spod_iter, use_rSVD=True, mu=mu0, lambd=lambd0,
-                       dtol=1e-4)
+    qtilde = np.zeros_like(q)
 
-    # Extract frames modes and error
-    qframes, qtilde, rel_err = ret.frames, ret.data_approx, ret.rel_err_hist
-    modes_list = [qframes[0].Nmodes, qframes[1].Nmodes, qframes[2].Nmodes]
-    qframe0 = qframes[0].build_field()
-    qframe1 = qframes[1].build_field()
-    qframe2 = qframes[2].build_field()
+    for var in range(2):
+        q_ = q[var * Nx:(var + 1) * Nx, :]
+        # Transformation interpolation error
+        interp_err = give_interpolation_error(np.reshape(q_, data_shape), trafo_1)
+        print("Transformation interpolation error =  %4.4e " % interp_err)
+        qmat = np.reshape(q_, [-1, Nt])
+        [N, M] = np.shape(qmat)
+        mu0 = N * M / (4 * np.sum(np.abs(qmat))) * 0.001
+        lambd0 = 1 / np.sqrt(np.maximum(M, N)) * 100
+        ret = shifted_rPCA(qmat, trafos, nmodes_max=60, eps=1e-16, Niter=spod_iter, use_rSVD=True, mu=mu0, lambd=lambd0,
+                           dtol=1e-4)
 
-    # Save the frame results when doing large computations
-    impath = "./data/result_srPCA_1D/"
-    os.makedirs(impath, exist_ok=True)
-    np.save(impath + 'q1_frame.npy', qframe0)
-    np.save(impath + 'q2_frame.npy', qframe1)
-    np.save(impath + 'q3_frame.npy', qframe2)
-    np.save(impath + 'qtilde.npy', qtilde)
-    np.save(impath + 'frame_modes.npy', modes_list, allow_pickle=True)
+        # Extract frames modes and error
+        qframes, qtilde_, rel_err = ret.frames, ret.data_approx, ret.rel_err_hist
+        modes_list = [qframes[0].Nmodes, qframes[1].Nmodes, qframes[2].Nmodes]
+        qframe0 = qframes[0].build_field()
+        qframe1 = qframes[1].build_field()
+        qframe2 = qframes[2].build_field()
 
-    # Relative reconstruction error
-    err_full = np.sqrt(np.mean(np.linalg.norm(q - qtilde, 2, axis=1) ** 2)) / \
-               np.sqrt(np.mean(np.linalg.norm(q, 2, axis=1) ** 2))
-    print("Error for full sPOD recons: {}".format(err_full))
+        # fig = plt.figure(figsize=(10, 5))
+        # ax1 = fig.add_subplot(121)
+        # im1 = ax1.pcolormesh(trafo_3.apply(qframe2).T, cmap='YlOrRd')  # , vmin=0, vmax=jnp.max(T))
+        # ax1.axis('off')
+        # ax1.set_title(r"$T(x, t)$")
+        # plt.show()
+        #
+        # exit()
 
-    return qframe0, qframe1, qframe2, qtilde
+
+        qtilde[var * Nx:(var + 1) * Nx, :] = qtilde_
+
+
+
+    # # Transformation interpolation error
+    # q[:Nx] = (q[:Nx] - np.min(q[:Nx])) / (np.max(q[:Nx]) - np.min(q[:Nx]))
+    # interp_err = give_interpolation_error(np.reshape(q, data_shape), trafo_1)
+    # print("Transformation interpolation error =  %4.4e " % interp_err)
+    # qmat = np.reshape(q, [-1, Nt])
+    # [N, M] = np.shape(qmat)
+    # mu0 = N * M / (4 * np.sum(np.abs(qmat))) * 0.001
+    # lambd0 = 1 / np.sqrt(np.maximum(M, N)) * 100
+    # ret = shifted_rPCA(qmat, trafos, nmodes_max=60, eps=1e-16, Niter=spod_iter, use_rSVD=True, mu=mu0, lambd=lambd0,
+    #                    dtol=1e-4)
+    #
+    # # Extract frames modes and error
+    # qframes, qtilde, rel_err = ret.frames, ret.data_approx, ret.rel_err_hist
+    # modes_list = [qframes[0].Nmodes, qframes[1].Nmodes, qframes[2].Nmodes]
+    # qframe0 = qframes[0].build_field()
+    # qframe1 = qframes[1].build_field()
+    # qframe2 = qframes[2].build_field()
+
+    return qtilde
 
 
 def srPCA_latest_2D(q, delta, X, Y, t, spod_iter):

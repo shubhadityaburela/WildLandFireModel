@@ -10,7 +10,7 @@ import math
 
 
 class Wildfire:
-    def __init__(self, Nxi: int, Neta: int, timesteps: int, select_every_n_timestep: int) -> None:
+    def __init__(self, Nxi: int, Neta: int, timesteps: int) -> None:
         # Assertion statements for checking the sanctity of the input variables
         assert Nxi > 0, f"Please input sensible values for the X grid points"
         assert Neta > 0, f"Please input sensible values for the Y grid points"
@@ -19,149 +19,128 @@ class Wildfire:
         # First we define the public variables of the class. All the variables with "__" in front are private variables
         self.X = None
         self.Y = None
+        self.dx = None
+        self.dy = None
         self.t = None
+        self.dt = None
 
         self.NumConservedVar = 2
 
         # Private variables
-        self.__Lxi = 500
-        self.__Leta = 500
-        self.__Nxi = Nxi
-        self.__Neta = Neta
-        self.__timesteps = timesteps
-        self.__cfl = 1.0 / np.sqrt(2)
+        self.Lxi = 500
+        self.Leta = 500
+        self.Nxi = Nxi
+        self.Neta = Neta
+        self.NN = self.Nxi * self.Neta
+        self.Nt = timesteps
+        self.cfl = 1.0
+
+        self.M = self.NumConservedVar * self.Nxi * self.Neta
 
         # Order of accuracy for the derivative matrices of the first and second order
         self.__firstderivativeOrder = "5thOrder"
 
         # Dimensional constants used in the model
-        self.__thermaldiffusivity = 0.2136
-        self.__preexponentialfactor = 0.1625
-        self.__windspeed_x = np.zeros(self.__timesteps)
-        self.__windspeed_y = np.zeros(self.__timesteps)
-        self.__temperaturerisepersecond = 187.93
-        self.__scaledheattransfercoefficient = 4.8372e-5
-        self.__beta = 558.49
-        self.__Tambient = 300
+        self.__k = 0.2136
+        self.__gamma_s = 0.1625
+        self.__v_x = np.zeros(self.Nt)
+        self.__v_y = np.zeros(self.Nt)
+        self.__alpha = 187.93
+        self.__gamma = 4.8372e-5
+        self.__mu = 558.49
+        self.__T_a = 300
         self.__speedofsoundsquare = 1
 
         # Sparse matrices of the first and second order
         self.Mat = None
 
-        # Concatenated data structure for the conserved variables T and S for all time steps
-        self.qs = []
+    def Grid(self):
+        self.X = np.arange(1, self.Nxi + 1) * self.Lxi / self.Nxi
+        self.dx = self.X[1] - self.X[0]
 
-        # For sPOD afterwards, select every nth timestep and store
-        self.select_every_n_timestep = select_every_n_timestep
-
-    def solver(self):
-        ########################################################
-        # INITIAL CONDITIONS
-        dx, dy, dt, q = self.__InitialConditions()
-
-        # SOLVER
-        self.__TimeIntegration(dx, dy, dt, q)  # The results of the simulation are stored in 'self.qs'
-
-        # SOLUTION RESHAPING FOR MODEL ORDER REDUCTION
-        self.qs = np.transpose(np.squeeze(self.qs).reshape((self.__timesteps // self.select_every_n_timestep, -1),
-                                                           order="F" if self.__Neta != 1 else "C"))
-        self.t = self.t[::self.select_every_n_timestep]
-        ########################################################
-
-    # Private function for this class
-    def __InitialConditions(self):
-        self.X = np.arange(1, self.__Nxi + 1) * self.__Lxi / self.__Nxi
-        dx = self.X[1] - self.X[0]
-
-        if self.__Neta == 1:
+        if self.Neta == 1:
             self.Y = 0
-            dy = 0
+            self.dy = 0
         else:
-            self.Y = np.arange(1, self.__Neta + 1) * self.__Leta / self.__Neta
-            dy = self.Y[1] - self.Y[0]
+            self.Y = np.arange(1, self.Neta + 1) * self.Leta / self.Neta
+            self.dy = self.Y[1] - self.Y[0]
 
-        dt = (np.sqrt(dx ** 2 + dy ** 2)) * self.__cfl / math.sqrt(self.__speedofsoundsquare)
-        self.t = dt * np.arange(self.__timesteps)
+        self.dt = (np.sqrt(self.dx ** 2 + self.dy ** 2)) * self.cfl / np.sqrt(self.__speedofsoundsquare)
+        self.t = self.dt * np.arange(self.Nt)
 
-        self.X_2D, self.Y_2D = np.meshgrid(self.X, self.Y)
-        self.X_2D = np.transpose(self.X_2D)
-        self.Y_2D = np.transpose(self.Y_2D)
-
-        # Select the correct Initial conditions
-        if self.__Neta == 1:
-            T = 1200 * np.exp(-((self.X_2D - self.__Lxi / 2) ** 2) / 200)
+    def InitialConditions(self):
+        if self.Neta == 1:
+            T = 1200 * np.exp(-((self.X - self.Lxi / 2) ** 2) / 200)
             S = np.ones_like(T)
         else:
-            T = 1200 * np.exp(-(((self.X_2D - self.__Lxi / 2) ** 2) / 200 + ((self.Y_2D - self.__Leta / 2) ** 2) / 200))
+            T = 1200 * np.exp(-(((self.X - self.Lxi / 2) ** 2) / 200 + ((self.Y - self.Leta / 2) ** 2) / 200))
             S = np.ones_like(T)
 
-        # Arrange the values of T and S in 'q'
-        NN = self.__Nxi * self.__Neta
-        T = np.reshape(T, newshape=NN, order="F")
-        S = np.reshape(S, newshape=NN, order="F")
-        q = np.array([T, S]).T
+            # Arrange the values of T and S in 'q'
+        T = np.reshape(T, newshape=self.NN, order="F")
+        S = np.reshape(S, newshape=self.NN, order="F")
+        q = np.array(np.concatenate((T, S)))
 
-        return dx, dy, dt, q
+        return q
 
-    # Private function for this class
-    def __TimeIntegration(self, dx, dy, dt, q):
-        # Creating the system matrices. The class for the creation of Coefficient matrix is created separately
-        # as they are of more general use for a wide variety of problems
-        self.Mat = CoefficientMatrix(orderDerivative=self.__firstderivativeOrder, Nxi=self.__Nxi,
-                                     Neta=self.__Neta, periodicity='Periodic', dx=dx, dy=dy)
+    def RHS(self, q):
 
-        # Time loop
-        for n in range(self.__timesteps):
-            # Main Runge-Kutta 4 solver step
-            q = self.__RK4(q, dt, 0, t_step=n)
-
-            # Store the values in the 'self.qs' for all the time steps successively
-            T = np.reshape(q[:, 0], newshape=[self.__Nxi, self.__Neta], order="F")
-            S = np.reshape(q[:, 1], newshape=[self.__Nxi, self.__Neta], order="F")
-
-            if n % self.select_every_n_timestep == 0:
-                self.qs.append([T, S])
-
-            # update plot values
-            if self.__Neta != 1:
-                print('Time step: ', n)
-
-        pass
-
-    # Private function for this class
-    def __RHS(self, q, t, t_step=0):
-        T = q[:, 0]
-        S = q[:, 1]
+        T = q[:self.NN]
+        S = q[self.NN:]
 
         # This array is a masking array that becomes 1 if the T is greater than 0 and 0 if not. It activates
         # the arrhenius term
-        arrhenius_activate = (T > 0).astype(int)
+        arrhenius_activate = np.where(T > 0, 1, 0)
+
         # This parameter is for preventing division by 0
-        epsilon = 0.000001
+        epsilon = 1e-8
 
         # Coefficients for the terms in the equation
-        Coeff_diff = self.__thermaldiffusivity
-        Coeff_conv_x = self.__windspeed_x[t_step]
-        Coeff_conv_y = self.__windspeed_y[t_step]
-
-        Coeff_source = self.__temperaturerisepersecond * self.__scaledheattransfercoefficient
-        Coeff_arrhenius = self.__temperaturerisepersecond
-        Coeff_massfrac = self.__preexponentialfactor
+        Coeff_diff = self.__k
+        Coeff_conv_x = self.__v_x[0]
+        Coeff_conv_y = self.__v_y[0]
+        Coeff_source = self.__alpha * self.__gamma
+        Coeff_arrhenius = self.__alpha
+        Coeff_massfrac = self.__gamma_s
 
         DT = Coeff_conv_x * self.Mat.Grad_Xi_kron + Coeff_conv_y * self.Mat.Grad_Eta_kron
-        Tdot = Coeff_diff * self.Mat.Laplace.dot(T) - DT.dot(T) - Coeff_source * T + Coeff_arrhenius * arrhenius_activate * S * np.exp(-self.__beta / (T + epsilon))
-        Sdot = - Coeff_massfrac * arrhenius_activate * S * np.exp(-self.__beta / (T + epsilon))
+        Tdot = Coeff_diff * self.Mat.Laplace.dot(T) - DT.dot(T) - Coeff_source * T + Coeff_arrhenius * \
+               arrhenius_activate * S * np.exp(-self.__mu / (np.maximum(T, epsilon)))
+        Sdot = - Coeff_massfrac * arrhenius_activate * S * np.exp(-self.__mu / (np.maximum(T, epsilon)))
 
-        qdot = np.array([Tdot, Sdot]).T
+        qdot = np.array(np.concatenate((Tdot, Sdot)))
 
         return qdot
 
-    # Private function for this class
-    def __RK4(self, u0, dt, t, t_step=0):
-        k1 = self.__RHS(u0, t, t_step)
-        k2 = self.__RHS(u0 + dt / 2 * k1, t + dt / 2, t_step)
-        k3 = self.__RHS(u0 + dt / 2 * k2, t + dt / 2, t_step)
-        k4 = self.__RHS(u0 + dt * k3, t + dt, t_step)
+    def TimeIntegration(self, q, ti_method="rk4"):
+        # Creating the system matrices. The class for the creation of Coefficient matrix is created separately
+        # as they are of more general use for a wide variety of problems
+        self.Mat = CoefficientMatrix(orderDerivative=self.__firstderivativeOrder, Nxi=self.Nxi,
+                                     Neta=self.Neta, periodicity='Periodic', dx=self.dx, dy=self.dy)
+
+        # Time loop
+        if ti_method == "rk4":
+
+            qs = np.zeros((self.NumConservedVar * self.Nxi * self.Neta, self.Nt))
+            for n in range(self.Nt):
+                q = self.rk4(self.RHS, q, self.dt)
+                qs[:, n] = q
+
+                print('Time step: ', n)
+
+
+            return qs
+
+    @staticmethod
+    def rk4(RHS: callable,
+            u0: np.ndarray,
+            dt,
+            *args) -> np.ndarray:
+
+        k1 = RHS(u0, *args)
+        k2 = RHS(u0 + dt / 2 * k1, *args)
+        k3 = RHS(u0 + dt / 2 * k2, *args)
+        k4 = RHS(u0 + dt * k3, *args)
 
         u1 = u0 + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
