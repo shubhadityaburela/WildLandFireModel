@@ -71,8 +71,8 @@ class PlotFlow:
         self.X_2D_grid = np.transpose(self.X_2D_grid)
         self.Y_2D_grid = np.transpose(self.Y_2D_grid)
 
-    def plot1D(self, Q):
-        immpath = "./plots/FOM_1D/primal/"
+    def plot1D(self, Q, name):
+        immpath = "./plots/FOM_1D/"
         os.makedirs(immpath, exist_ok=True)
 
         T = Q[:self.Nx, :]
@@ -101,7 +101,7 @@ class PlotFlow:
         fig.supylabel(r"time $t$")
         fig.supxlabel(r"space $x$")
 
-        save_fig(filepath=immpath + 'Var', figure=fig)
+        fig.savefig(immpath + name, dpi=300, transparent=True)
 
     def plot2D(self, Q, save_plot=False, plot_every=10, plot_at_all=False):
         Q = np.reshape(np.transpose(Q), newshape=[self.Nt, 2, self.Nx, self.Ny], order="F")

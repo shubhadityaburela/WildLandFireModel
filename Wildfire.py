@@ -38,24 +38,30 @@ class Wildfire:
         self.M = self.NumConservedVar * self.Nxi * self.Neta
 
         # Order of accuracy for the derivative matrices of the first and second order
-        self.__firstderivativeOrder = "5thOrder"
+        self.firstderivativeOrder = "5thOrder"
 
         # Dimensional constants used in the model
-        self.__k = 0.2136
-        self.__gamma_s = 0.1625
-        self.__v_x = np.zeros(self.Nt)
-        self.__v_y = np.zeros(self.Nt)
-        self.__alpha = 187.93
-        self.__gamma = 4.8372e-5
-        self.__mu = 558.49
-        self.__T_a = 300
-        self.__speedofsoundsquare = 1
+        self.k = 0.2136
+        self.gamma_s = 0.1625
+        self.v_x = np.zeros(self.Nt)
+        self.v_y = np.zeros(self.Nt)
+        self.alpha = 187.93
+        self.gamma = 4.8372e-5
+        self.mu = 558.49
+        self.T_a = 300
+        self.speedofsoundsquare = 1
 
         # Sparse matrices of the first and second order
         self.Mat = None
 
+        # Reference variables
+        self.T_ref = self.mu
+        self.S_ref = 1
+        self.x_ref = np.sqrt(self.k * self.mu) / np.sqrt(self.alpha)
+        self.t_ref = self.mu / self.alpha
+
     def Grid(self):
-        self.X = np.arange(1, self.Nxi + 1) * self.Lxi / self.Nxi
+        self.X = np.arange(1, self.Nxi + 1) * self.Lxi / self.Nxi / self.x_ref
         self.dx = self.X[1] - self.X[0]
 
         if self.Neta == 1:
@@ -65,18 +71,21 @@ class Wildfire:
             self.Y = np.arange(1, self.Neta + 1) * self.Leta / self.Neta
             self.dy = self.Y[1] - self.Y[0]
 
-        self.dt = (np.sqrt(self.dx ** 2 + self.dy ** 2)) * self.cfl / np.sqrt(self.__speedofsoundsquare)
-        self.t = self.dt * np.arange(self.Nt)
+        dt = (np.sqrt(self.dx ** 2 + self.dy ** 2)) * self.cfl / np.sqrt(self.speedofsoundsquare)
+        t = dt * np.arange(self.Nt)
+
+        self.t = t / self.t_ref
+        self.dt = self.t[1] - self.t[0]
 
     def InitialConditions(self):
         if self.Neta == 1:
-            T = 1200 * np.exp(-((self.X - self.Lxi / 2) ** 2) / 200)
-            S = np.ones_like(T)
+            T = 1200 * np.exp(-((self.X - self.Lxi / (2 * self.x_ref)) ** 2) / 200) / self.T_ref
+            S = np.ones_like(T) / self.S_ref
         else:
             T = 1200 * np.exp(-(((self.X - self.Lxi / 2) ** 2) / 200 + ((self.Y - self.Leta / 2) ** 2) / 200))
             S = np.ones_like(T)
 
-            # Arrange the values of T and S in 'q'
+        # Arrange the values of T and S in 'q'
         T = np.reshape(T, newshape=self.NN, order="F")
         S = np.reshape(S, newshape=self.NN, order="F")
         q = np.array(np.concatenate((T, S)))
@@ -96,17 +105,20 @@ class Wildfire:
         epsilon = 1e-8
 
         # Coefficients for the terms in the equation
-        Coeff_diff = self.__k
-        Coeff_conv_x = self.__v_x[0]
-        Coeff_conv_y = self.__v_y[0]
-        Coeff_source = self.__alpha * self.__gamma
-        Coeff_arrhenius = self.__alpha
-        Coeff_massfrac = self.__gamma_s
+        Coeff_diff = 1.0
+
+        Coeff_conv_x = self.v_x[0]
+        Coeff_conv_y = self.v_y[0]
+
+        Coeff_react_1 = 1.0
+        Coeff_react_2 = self.gamma * self.mu
+
+        Coeff_react_3 = (self.mu * self.gamma_s / self.alpha)
 
         DT = Coeff_conv_x * self.Mat.Grad_Xi_kron + Coeff_conv_y * self.Mat.Grad_Eta_kron
-        Tdot = Coeff_diff * self.Mat.Laplace.dot(T) - DT.dot(T) - Coeff_source * T + Coeff_arrhenius * \
-               arrhenius_activate * S * np.exp(-self.__mu / (np.maximum(T, epsilon)))
-        Sdot = - Coeff_massfrac * arrhenius_activate * S * np.exp(-self.__mu / (np.maximum(T, epsilon)))
+        Tdot = Coeff_diff * self.Mat.Laplace.dot(T) - DT.dot(T) - Coeff_react_2 * T + \
+               Coeff_react_1 * arrhenius_activate * S * np.exp(-1 / (np.maximum(T, epsilon)))
+        Sdot = - Coeff_react_3 * arrhenius_activate * S * np.exp(-1 / (np.maximum(T, epsilon)))
 
         qdot = np.array(np.concatenate((Tdot, Sdot)))
 
@@ -115,7 +127,7 @@ class Wildfire:
     def TimeIntegration(self, q, ti_method="rk4"):
         # Creating the system matrices. The class for the creation of Coefficient matrix is created separately
         # as they are of more general use for a wide variety of problems
-        self.Mat = CoefficientMatrix(orderDerivative=self.__firstderivativeOrder, Nxi=self.Nxi,
+        self.Mat = CoefficientMatrix(orderDerivative=self.firstderivativeOrder, Nxi=self.Nxi,
                                      Neta=self.Neta, periodicity='Periodic', dx=self.dx, dy=self.dy)
 
         # Time loop
@@ -130,6 +142,16 @@ class Wildfire:
 
 
             return qs
+
+    def ReDim_grid(self):
+        self.X = self.X * self.x_ref
+        self.t = self.t * self.t_ref
+
+    def ReDim_qs(self, qs):
+        qs[:self.NN, :] = qs[:self.NN, :] * self.T_ref
+        qs[self.NN:, :] = qs[self.NN:, :] * self.S_ref
+
+        return qs
 
     @staticmethod
     def rk4(RHS: callable,
