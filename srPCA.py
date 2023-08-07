@@ -19,7 +19,7 @@ def srPCA_latest_1D(q, delta, X, t, spod_iter):
     Nx = np.size(X)
     Nt = np.size(t)
 
-    data_shape = [Nx, 1, 2, Nt]
+    data_shape = [Nx, 1, 1, Nt]
     dx = X[1] - X[0]
     L = [X[-1]]
 
@@ -41,20 +41,27 @@ def srPCA_latest_1D(q, delta, X, t, spod_iter):
     trafos = [trafo_1, trafo_2, trafo_3]
 
     # Transformation interpolation error
-    # q[:Nx] = (q[:Nx] - np.min(q[:Nx])) / (np.max(q[:Nx]) - np.min(q[:Nx]))
     interp_err = give_interpolation_error(np.reshape(q, data_shape), trafo_1)
     print("Transformation interpolation error =  %4.4e " % interp_err)
     qmat = np.reshape(q, [-1, Nt])
     [N, M] = np.shape(qmat)
-    mu0 = N * M / (4 * np.sum(np.abs(qmat))) * 0.0005
+    mu0 = N * M / (4 * np.sum(np.abs(qmat))) * 0.005
     lambd0 = 1 / np.sqrt(np.maximum(M, N)) * 100
     ret = shifted_rPCA(qmat, trafos, nmodes_max=60, eps=1e-16, Niter=spod_iter, use_rSVD=True, mu=mu0, lambd=lambd0,
                        dtol=1e-4)
 
     # Extract frames modes and error
     qframes, qtilde, rel_err = ret.frames, ret.data_approx, ret.rel_err_hist
+    modes_list = [qframes[0].Nmodes, qframes[1].Nmodes, qframes[2].Nmodes]
+    V = [qframes[0].modal_system["U"],
+         qframes[1].modal_system["U"],
+         qframes[2].modal_system["U"]]
 
-    return qtilde
+    qframes = [qframes[0].build_field(),
+               qframes[1].build_field(),
+               qframes[2].build_field()]
+
+    return qtilde, modes_list, V, qframes
 
 
 def srPCA_latest_2D(q, delta, X, Y, t, spod_iter):
@@ -136,7 +143,7 @@ def srPCA_latest_2D(q, delta, X, Y, t, spod_iter):
     transform_list = [trafo_1, trafo_2]
     qmat = np.reshape(q_polar, [-1, Nt])
     mu = np.prod(np.size(qmat, 0)) / (4 * np.sum(np.abs(qmat))) * 1.0    # mu multiplication factor (best = 0.5) with 7 iterations
-    lambd = 1 / np.sqrt(np.max([Nx, Ny])) * 100000.0                          # lamda multiplication factor (best = 0.5 or 1 or make it 100000)
+    lambd = 1 / np.sqrt(np.max([Nx, Ny])) * 100000.0                     # lamda multiplication factor (best = 0.5 or 1 or make it 100000)
     ret = shifted_rPCA(qmat, transform_list, nmodes_max=100, eps=1e-4, Niter=spod_iter, use_rSVD=True, mu=mu, lambd=lambd)
     # ret = shifted_POD(qmat, transform_list, nmodes=np.asarray([4, 2]), eps=1e-4, Niter=spod_iter, use_rSVD=False)
     qframes, qtilde, rel_err = ret.frames, ret.data_approx, ret.rel_err_hist

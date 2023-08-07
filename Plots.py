@@ -71,8 +71,7 @@ class PlotFlow:
         self.X_2D_grid = np.transpose(self.X_2D_grid)
         self.Y_2D_grid = np.transpose(self.Y_2D_grid)
 
-    def plot1D(self, Q, name):
-        immpath = "./plots/FOM_1D/"
+    def plot1D(self, Q, name, immpath):
         os.makedirs(immpath, exist_ok=True)
 
         T = Q[:self.Nx, :]
