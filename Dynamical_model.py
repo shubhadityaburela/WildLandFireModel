@@ -5,6 +5,9 @@ from sklearn.utils.extmath import randomized_svd
 from scipy.linalg import qr
 import matplotlib.pyplot as plt
 import sys
+
+from Coefficient_Matrix import CoefficientMatrix
+
 np.set_printoptions(linewidth=np.inf)
 
 import sys
@@ -18,6 +21,8 @@ def NL(T, S):
     epsilon = 1e-8
 
     return arr_act * S * np.exp(-1 / (np.maximum(T, epsilon)))
+    # return arr_act * S * (1 - 1 / (np.maximum(T, epsilon)) + 1 / (np.maximum(T, epsilon)) ** 2 -
+    #                       1 / (np.maximum(T, epsilon)) ** 3 + 1 / (np.maximum(T, epsilon)) ** 4)
 
 
 def central_FDMatrix(order, Nx, dx):
@@ -358,15 +363,22 @@ def get_online_state(T_trafo, V, a, wf, Nm_lst):
 def DEIM_Mat(V, qs, wf, n_rom, n_deim):
     # ---------------------------------------------------
     # Construct linear operators
-    A00 = wf.Mat.Laplace - eye(wf.Nxi, format="csr") * wf.gamma * wf.mu
-    A = block_diag((A00, csr_array((wf.Nxi, wf.Nxi))))
-    A_L = (V.transpose() @ A) @ V
+    Mat = CoefficientMatrix(orderDerivative=wf.firstderivativeOrder, Nxi=wf.Nxi,
+                            Neta=wf.Neta, periodicity='Periodic', dx=wf.dx, dy=wf.dy)
+    A00 = Mat.Laplace - eye(wf.NN, format="csr") * wf.gamma * wf.mu
+    A = block_diag((A00, csr_array((wf.NN, wf.NN))))
+    A_L1 = (V.transpose() @ A) @ V
+
+    # Convection matrix (Needs to be changed if the velocity is time dependent)
+    C00 = - (wf.v_x[0] * Mat.Grad_Xi_kron + wf.v_y[0] * Mat.Grad_Eta_kron)
+    C = block_diag((C00, csr_array((wf.NN, wf.NN))))
+    A_L2 = (V.transpose() @ C) @ V
 
     # ---------------------------------------------------
     # Construct nonlinear operators
     # Extract the U matrix from the nonlinear snapshots
-    T = qs[:wf.Nxi]
-    S = qs[wf.Nxi:]
+    T = qs[:wf.NN]
+    S = qs[wf.NN:]
     c_r1 = 1.0
     c_r3 = - (wf.mu * wf.gamma_s / wf.alpha)
 
@@ -386,38 +398,37 @@ def DEIM_Mat(V, qs, wf, n_rom, n_deim):
     # for the hyperreduction of the values inside the nonlinearity
     ST_V = np.zeros((n_deim, sum(n_rom)))
     ST_V[:, :n_rom[0]] = V[SDEIM, :n_rom[0]]
-    ST_V[:, n_rom[0]:] = V[wf.Nxi + SDEIM, n_rom[0]:]
+    ST_V[:, n_rom[0]:] = V[wf.NN + SDEIM, n_rom[0]:]
 
-    return A_L, A_NL, ST_V
+    return A_L1, A_L2, A_NL, ST_V
 
 
-def POD_DEIM(V, A_L, A_NL, ST_V, a, wf, n_rom, n_deim, ti_method, red_nl=True):
-    def RHS(a_, A_L_, A_NL_, ST_V_, V_):
+def POD_DEIM(V, A_L1, A_L2, A_NL, ST_V, a, wf, n_rom, n_deim, ti_method, red_nl=True):
+    def RHS(a_, A_L1_, A_L2_, A_NL_, ST_V_, V_):
 
         if red_nl:
 
             T_red = ST_V_[:, :n_rom[0]] @ a_[:n_rom[0]]
             S_red = ST_V_[:, n_rom[0]:] @ a_[n_rom[0]:]
 
-            return A_L_ @ a_ + A_NL_ @ NL(T_red, S_red)
+            return A_L1_ @ a_ + A_L2_ @ a_ + A_NL_ @ NL(T_red, S_red)
         else:
             var = V_ @ a_
-            T = var[:wf.Nxi]
-            S = var[wf.Nxi:]
+            T = var[:wf.NN]
+            S = var[wf.NN:]
             c_r1 = 1.0
             c_r3 = - (wf.mu * wf.gamma_s / wf.alpha)
 
             NL_term = NL(T, S)
-            # F = np.kron(np.asarray([[c_r1], [c_r3]]), NL_term)
             F = np.kron([c_r1, c_r3], NL_term)
 
-            return A_L_ @ a_ + V_.transpose() @ F
+            return A_L1_ @ a_ + A_L2_ @ a_ + V_.transpose() @ F
 
     if ti_method == "rk4":
 
         as_ = np.zeros((a.shape[0], wf.Nt))
         for n in range(wf.Nt):
-            a = wf.rk4(RHS, a, wf.dt, A_L, A_NL, ST_V, V)
+            a = wf.rk4(RHS, a, wf.dt, A_L1, A_L2, A_NL, ST_V, V)
             as_[:, n] = a
 
             print('Time step: ', n)

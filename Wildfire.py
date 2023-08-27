@@ -19,6 +19,8 @@ class Wildfire:
         # First we define the public variables of the class. All the variables with "__" in front are private variables
         self.X = None
         self.Y = None
+        self.X_2D = None
+        self.Y_2D = None
         self.dx = None
         self.dy = None
         self.t = None
@@ -33,7 +35,7 @@ class Wildfire:
         self.Neta = Neta
         self.NN = self.Nxi * self.Neta
         self.Nt = timesteps
-        self.cfl = 1.0
+        self.cfl = 0.15    # 1.0 / np.sqrt(2)
 
         self.M = self.NumConservedVar * self.Nxi * self.Neta
 
@@ -43,7 +45,7 @@ class Wildfire:
         # Dimensional constants used in the model
         self.k = 0.2136
         self.gamma_s = 0.1625
-        self.v_x = np.zeros(self.Nt)
+        self.v_x = 0.2 * np.ones(self.Nt)
         self.v_y = np.zeros(self.Nt)
         self.alpha = 187.93
         self.gamma = 4.8372e-5
@@ -58,7 +60,10 @@ class Wildfire:
         self.T_ref = self.mu
         self.S_ref = 1
         self.x_ref = np.sqrt(self.k * self.mu) / np.sqrt(self.alpha)
+        self.y_ref = np.sqrt(self.k * self.mu) / np.sqrt(self.alpha)
         self.t_ref = self.mu / self.alpha
+        self.v_x_ref = self.x_ref / self.t_ref
+        self.v_y_ref = self.y_ref / self.t_ref
 
     def Grid(self):
         self.X = np.arange(1, self.Nxi + 1) * self.Lxi / self.Nxi / self.x_ref
@@ -68,27 +73,35 @@ class Wildfire:
             self.Y = 0
             self.dy = 0
         else:
-            self.Y = np.arange(1, self.Neta + 1) * self.Leta / self.Neta
+            self.Y = np.arange(1, self.Neta + 1) * self.Leta / self.Neta / self.y_ref
             self.dy = self.Y[1] - self.Y[0]
 
         dt = (np.sqrt(self.dx ** 2 + self.dy ** 2)) * self.cfl / np.sqrt(self.speedofsoundsquare)
         t = dt * np.arange(self.Nt)
-
         self.t = t / self.t_ref
         self.dt = self.t[1] - self.t[0]
+
+        self.X_2D, self.Y_2D = np.meshgrid(self.X, self.Y)
+        self.X_2D = np.transpose(self.X_2D)
+        self.Y_2D = np.transpose(self.Y_2D)
 
     def InitialConditions(self):
         if self.Neta == 1:
             T = 1200 * np.exp(-((self.X - self.Lxi / (2 * self.x_ref)) ** 2) / 200) / self.T_ref
             S = np.ones_like(T) / self.S_ref
         else:
-            T = 1200 * np.exp(-(((self.X - self.Lxi / 2) ** 2) / 200 + ((self.Y - self.Leta / 2) ** 2) / 200))
-            S = np.ones_like(T)
+            T = 1200 * np.exp(-(((self.X_2D - self.Lxi / (2 * self.x_ref)) ** 2) / 200 +
+                                ((self.Y_2D - self.Leta / (2 * self.y_ref)) ** 2) / 200)) / self.T_ref
+            S = np.ones_like(T) / self.S_ref
 
         # Arrange the values of T and S in 'q'
         T = np.reshape(T, newshape=self.NN, order="F")
         S = np.reshape(S, newshape=self.NN, order="F")
         q = np.array(np.concatenate((T, S)))
+
+        # Non-dimensionalize the velocities
+        self.v_x = self.v_x / self.v_x_ref
+        self.v_y = self.v_y / self.v_y_ref
 
         return q
 
@@ -145,6 +158,7 @@ class Wildfire:
 
     def ReDim_grid(self):
         self.X = self.X * self.x_ref
+        self.Y = self.Y * self.y_ref
         self.t = self.t * self.t_ref
 
     def ReDim_qs(self, qs):
