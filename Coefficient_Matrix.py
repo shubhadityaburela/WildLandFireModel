@@ -158,10 +158,3 @@ class CoefficientMatrix:
         D_1[D_1.shape[0] - a:D_1.shape[0], D_1.shape[1] - b:D_1.shape[1]] = BlockBR
 
         return D_1 / h
-
-
-
-
-
-
-

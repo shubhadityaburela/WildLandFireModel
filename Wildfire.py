@@ -1,5 +1,6 @@
 from Coefficient_Matrix import CoefficientMatrix
 import matplotlib
+
 matplotlib.use("TkAgg")
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
@@ -7,6 +8,9 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib import cm
 import numpy as np
 import math
+
+import jax.numpy as jnp
+import jax.lax
 
 
 class Wildfire:
@@ -35,7 +39,7 @@ class Wildfire:
         self.Neta = Neta
         self.NN = self.Nxi * self.Neta
         self.Nt = timesteps
-        self.cfl = 0.15    # 1.0 / np.sqrt(2)
+        self.cfl = 0.15  # 1.0 / np.sqrt(2)
 
         self.M = self.NumConservedVar * self.Nxi * self.Neta
 
@@ -153,7 +157,6 @@ class Wildfire:
 
                 print('Time step: ', n)
 
-
             return qs
 
     def ReDim_grid(self):
@@ -181,6 +184,3 @@ class Wildfire:
         u1 = u0 + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
         return u1
-
-
-

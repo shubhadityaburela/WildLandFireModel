@@ -21,8 +21,6 @@ def NL(T, S):
     epsilon = 1e-8
 
     return arr_act * S * np.exp(-1 / (np.maximum(T, epsilon)))
-    # return arr_act * S * (1 - 1 / (np.maximum(T, epsilon)) + 1 / (np.maximum(T, epsilon)) ** 2 -
-    #                       1 / (np.maximum(T, epsilon)) ** 3 + 1 / (np.maximum(T, epsilon)) ** 4)
 
 
 def central_FDMatrix(order, Nx, dx):
