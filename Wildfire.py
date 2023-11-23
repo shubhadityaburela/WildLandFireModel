@@ -34,12 +34,12 @@ class Wildfire:
 
         # Private variables
         self.Lxi = 500
-        self.Leta = 500
+        self.Leta = 1
         self.Nxi = Nxi
         self.Neta = Neta
         self.NN = self.Nxi * self.Neta
         self.Nt = timesteps
-        self.cfl = 0.15  # 1.0 / np.sqrt(2)
+        self.cfl = 1.0
 
         self.M = self.NumConservedVar * self.Nxi * self.Neta
 
@@ -49,7 +49,7 @@ class Wildfire:
         # Dimensional constants used in the model
         self.k = 0.2136
         self.gamma_s = 0.1625
-        self.v_x = 0.2 * np.ones(self.Nt)
+        self.v_x = np.zeros(self.Nt)
         self.v_y = np.zeros(self.Nt)
         self.alpha = 187.93
         self.gamma = 4.8372e-5
@@ -184,3 +184,4 @@ class Wildfire:
         u1 = u0 + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
         return u1
+

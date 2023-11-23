@@ -23,9 +23,9 @@ impath = "./data/"
 os.makedirs(impath, exist_ok=True)
 
 # Problem variables
-Dimension = "2D"
+Dimension = "1D"
 Nxi = 500
-Neta = 500
+Neta = 1
 Nt = 1000
 tm = "rk4"  # Time stepping method
 
@@ -41,6 +41,7 @@ tm = "rk4"  # Time stepping method
 #   B2.2 : Project the obtained result onto the basis vectors calculated in the offline stage.
 #   B2.3 : Calculate the online error and the offline error.
 
+
 # %%
 # A1.1 or B1.1 : Run the FOM once
 tic_F = time.process_time()
@@ -49,7 +50,6 @@ wf.Grid()
 q0 = wf.InitialConditions()
 qs = wf.TimeIntegration(q0, ti_method=tm)
 toc_F = time.process_time()
-
 
 # %% Reduced order modelling with sPOD-sDEIM
 # Steps:
@@ -92,8 +92,8 @@ print(f"Time consumption in sPOD algorithm : {toc - tic:0.4f} seconds")
 # A1.4 : Calculate the offline error
 err_full_T = np.linalg.norm(qs[:wf.Nxi] - qs_offline[:wf.Nxi]) / np.linalg.norm(qs[:wf.Nxi])
 err_full_S = np.linalg.norm(qs[wf.Nxi:] - qs_offline[wf.Nxi:]) / np.linalg.norm(qs[wf.Nxi:])
-print("Error for full sPOD recons for T: {}".format(err_full_T))
-print("Error for full sPOD recons for S: {}".format(err_full_S))
+print("Error for offline sPOD recons for T: {}".format(err_full_T))
+print("Error for offline sPOD recons for S: {}".format(err_full_S))
 
 # %%
 # A1.5 : Save the frame results when doing large computations
@@ -135,6 +135,13 @@ delta_online = as_[Nm:]
 _, T_trafo = get_transformation_operators(delta_online, wf)
 qs_online = get_online_state(T_trafo, V, as_online, wf, Nm_lst)
 
+#%%
+# A2.3 : Calculate the online error
+err_full_T = np.linalg.norm(qs[:wf.Nxi] - qs_online[:wf.Nxi]) / np.linalg.norm(qs[:wf.Nxi])
+err_full_S = np.linalg.norm(qs[wf.Nxi:] - qs_online[wf.Nxi:]) / np.linalg.norm(qs[wf.Nxi:])
+print("Error for online sPOD recons for T: {}".format(err_full_T))
+print("Error for online sPOD recons for S: {}".format(err_full_S))
+
 # %% Re-dimensionlize
 wf.ReDim_grid()
 qs = wf.ReDim_qs(qs)
@@ -145,13 +152,13 @@ qs_online = wf.ReDim_qs(qs_online)
 pf = PlotFlow(wf.X, wf.Y, wf.t)
 # Plot the model
 if Dimension == "1D":
-    pf.plot1D(qs, name="original", immpath="./plots/1D/POD_DEIM/")
-    pf.plot1D(qs_offline, name="offline", immpath="./plots/1D/POD_DEIM/")
-    pf.plot1D(qs_online, name="online", immpath="./plots/1D/POD_DEIM/")
+    pf.plot1D(qs, name="original", immpath="./plots/1D/sPOD_sDEIM/")
+    pf.plot1D(qs_offline, name="offline", immpath="./plots/1D/sPOD_sDEIM/")
+    pf.plot1D(qs_online, name="online", immpath="./plots/1D/sPOD_sDEIM/")
 else:
-    pf.plot2D(qs, name="original", immpath="./plots/2D/POD_DEIM/",
+    pf.plot2D(qs, name="original", immpath="./plots/2D/sPOD_sDEIM/",
               save_plot=True, plot_every=100, plot_at_all=True)
-    pf.plot2D(qs_offline, name="offline", immpath="./plots/2D/POD_DEIM/",
+    pf.plot2D(qs_offline, name="offline", immpath="./plots/2D/sPOD_sDEIM/",
               save_plot=True, plot_every=100, plot_at_all=True)
-    pf.plot2D(qs_online, name="online", immpath="./plots/2D/POD_DEIM/",
+    pf.plot2D(qs_online, name="online", immpath="./plots/2D/sPOD_sDEIM/",
               save_plot=True, plot_every=100, plot_at_all=True)

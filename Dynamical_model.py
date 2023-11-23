@@ -349,6 +349,38 @@ def get_online_state(T_trafo, V, a, wf, Nm_lst):
          V[wf.Nxi:, lst[2]:lst[3]] @ a[lst[2]:lst[3]],
          V[wf.Nxi:, lst[4]:lst[5]] @ a[lst[4]:lst[5]]]
 
+
+    # X_1D_grid, t_grid = np.meshgrid(wf.X, wf.t)
+    # X_1D_grid = X_1D_grid.T
+    # t_grid = t_grid.T
+    # from mpl_toolkits.axes_grid1 import make_axes_locatable
+    # fig = plt.figure(figsize=(10, 5))
+    # ax1 = fig.add_subplot(121)
+    # im1 = ax1.pcolormesh(X_1D_grid, t_grid, T[0], cmap='YlOrRd')
+    # ax1.axis('off')
+    # # ax1.axis('scaled')
+    # ax1.set_title(r"$T(x, t)$")
+    # divider = make_axes_locatable(ax1)
+    # cax = divider.append_axes('right', size='10%', pad=0.08)
+    # fig.colorbar(im1, cax=cax, orientation='vertical')
+    #
+    # ax2 = fig.add_subplot(122)
+    # im2 = ax2.pcolormesh(X_1D_grid, t_grid, T[1], cmap='YlOrRd')
+    # ax2.axis('off')
+    # # ax2.axis('scaled')
+    # ax2.set_title(r"$S(x, t)$")
+    # divider = make_axes_locatable(ax2)
+    # cax = divider.append_axes('right', size='10%', pad=0.08)
+    # fig.colorbar(im2, cax=cax, orientation='vertical')
+    #
+    # fig.supylabel(r"time $t$")
+    # fig.supxlabel(r"space $x$")
+    #
+    # plt.show()
+    #
+    # exit()
+
+
     for frame in range(len(T_trafo)):
         T_online += T_trafo[frame].apply(T[frame])
         S_online += T_trafo[frame].apply(S[frame])
