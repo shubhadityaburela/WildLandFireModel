@@ -56,10 +56,10 @@ class PlotFlow:
         self.__Ny = int(np.size(Y))
         self.__Nt = int(np.size(t))
 
-        self.__vmax_T = np.max(SnapMat[:self.__Nx, :])
-        self.__vmin_T = np.min(SnapMat[:self.__Nx, :])
-        self.__vmax_S = np.max(SnapMat[self.__Nx:, :])
-        self.__vmin_S = np.min(SnapMat[self.__Nx:, :])
+        # self.__vmax_T = np.max(SnapMat[:self.__Nx, :])
+        # self.__vmin_T = np.min(SnapMat[:self.__Nx, :])
+        # self.__vmax_S = np.max(SnapMat[self.__Nx:, :])
+        # self.__vmin_S = np.min(SnapMat[self.__Nx:, :])
 
         # Prepare the space-time grid
         [self.__X_grid, self.__t_grid] = np.meshgrid(X, t)
@@ -93,7 +93,7 @@ class PlotFlow:
         ax1 = fig.add_subplot(121)
         im1 = ax1.pcolormesh(self.__X_grid, self.__t_grid, T, cmap='YlOrRd')
         ax1.axis('off')
-        ax1.axis('scaled')
+        ax1.axis('auto')
         ax1.set_title(r"$T(x, t)$")
         divider = make_axes_locatable(ax1)
         cax = divider.append_axes('right', size='10%', pad=0.08)
@@ -102,7 +102,7 @@ class PlotFlow:
         ax2 = fig.add_subplot(122)
         im2 = ax2.pcolormesh(self.__X_grid, self.__t_grid, S, cmap='YlGn')
         ax2.axis('off')
-        ax2.axis('scaled')
+        ax2.axis('auto')
         ax2.set_title(r"$S(x, t)$")
         divider = make_axes_locatable(ax2)
         cax = divider.append_axes('right', size='10%', pad=0.08)
@@ -200,6 +200,9 @@ class PlotFlow:
 
     def __srPCA(self, SnapMat):
 
+        immpath = "./plots/srPCA_1D/"
+        os.makedirs(immpath, exist_ok=True)
+
         qmin = np.min(SnapMat[0])
         qmax = np.max(SnapMat[0])
         fig, axs = plt.subplots(1, 4, num=8, sharey=True, figsize=(15, 6))
@@ -221,7 +224,7 @@ class PlotFlow:
         axs[3].set_xticks([], [])
         plt.tight_layout()
 
-        save_fig(filepath=impath + "frames_sPOD", figure=fig)
+        save_fig(filepath=immpath + "frames_sPOD", figure=fig)
 
         print('All the plots for the SHIFTED rPCA MODEL saved')
 

@@ -29,7 +29,7 @@ class Wildfire:
         self.__Nxi = Nxi
         self.__Neta = Neta
         self.__timesteps = timesteps
-        self.__cfl = 1.0 / np.sqrt(2)
+        self.__cfl = 0.9  # 1.0 / np.sqrt(2)
 
         # Order of accuracy for the derivative matrices of the first and second order
         self.__firstderivativeOrder = "5thOrder"
@@ -37,7 +37,7 @@ class Wildfire:
         # Dimensional constants used in the model
         self.__thermaldiffusivity = 0.2136
         self.__preexponentialfactor = 0.1625
-        self.__windspeed_x = np.zeros(self.__timesteps)
+        self.__windspeed_x = 0.2 * np.ones(self.__timesteps)
         self.__windspeed_y = np.zeros(self.__timesteps)
         self.__temperaturerisepersecond = 187.93
         self.__scaledheattransfercoefficient = 4.8372e-5

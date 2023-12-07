@@ -23,15 +23,15 @@ def srPCA_latest_1D(q, delta, X, t, spod_iter):
     L = [X[-1]]
 
     # Create the transformations
-    trafo_1 = transforms(data_shape, L + dx, shifts=delta[0],
+    trafo_1 = transforms(data_shape, L, shifts=delta[0],
                          dx=[dx],
                          use_scipy_transform=False,
                          interp_order=5)
-    trafo_2 = transforms(data_shape, L + dx, shifts=delta[1],
+    trafo_2 = transforms(data_shape, L, shifts=delta[1],
                          trafo_type="identity", dx=[dx],
                          use_scipy_transform=False,
                          interp_order=5)
-    trafo_3 = transforms(data_shape, L + dx, shifts=delta[2],
+    trafo_3 = transforms(data_shape, L, shifts=delta[2],
                          dx=[dx],
                          use_scipy_transform=False,
                          interp_order=5)
@@ -44,7 +44,7 @@ def srPCA_latest_1D(q, delta, X, t, spod_iter):
     trafos = [trafo_1, trafo_2, trafo_3]
     qmat = np.reshape(q, [-1, Nt])
     [N, M] = np.shape(qmat)
-    mu0 = N * M / (4 * np.sum(np.abs(qmat))) * 0.001
+    mu0 = N * M / (4 * np.sum(np.abs(qmat))) * 0.01
     lambd0 = 1 / np.sqrt(np.maximum(M, N)) * 100
     ret = shifted_rPCA(qmat, trafos, nmodes_max=60, eps=1e-16, Niter=spod_iter, use_rSVD=True, mu=mu0, lambd=lambd0,
                        dtol=1e-4)
@@ -70,7 +70,15 @@ def srPCA_latest_1D(q, delta, X, t, spod_iter):
                np.sqrt(np.mean(np.linalg.norm(q, 2, axis=1) ** 2))
     print("Error for full sPOD recons: {}".format(err_full))
 
-    return qframe0, qframe1, qframe2, qtilde
+    # Relative reconstruction error for POD
+    U, S, VT = randomized_svd(q, n_components=sum(modes_list) + 2, random_state=None)
+    q_POD = U.dot(np.diag(S).dot(VT))
+    err_full = np.sqrt(np.mean(np.linalg.norm(q - q_POD, 2, axis=1) ** 2)) / \
+               np.sqrt(np.mean(np.linalg.norm(q, 2, axis=1) ** 2))
+    print("Error for full POD recons: {}".format(err_full))
+
+
+    return qframe0, qframe1, qframe2, qtilde, q_POD
 
 
 def srPCA_latest_2D(q, delta, X, Y, t, spod_iter):
@@ -151,9 +159,9 @@ def srPCA_latest_2D(q, delta, X, Y, t, spod_iter):
     # Apply srPCA on the data
     transform_list = [trafo_1, trafo_2]
     qmat = np.reshape(q_polar, [-1, Nt])
-    mu = np.prod(np.size(qmat, 0)) / (4 * np.sum(np.abs(qmat))) * 1.0    # mu multiplication factor (best = 0.5) with 7 iterations
-    lambd = 1 / np.sqrt(np.max([Nx, Ny])) * 100000.0                          # lamda multiplication factor (best = 0.5 or 1 or make it 100000)
-    ret = shifted_rPCA(qmat, transform_list, nmodes_max=100, eps=1e-4, Niter=spod_iter, use_rSVD=True, mu=mu, lambd=lambd)
+    mu = np.prod(np.size(qmat, 0)) / (4 * np.sum(np.abs(qmat))) * 0.1    # mu multiplication factor (best = 0.5) with 7 iterations     # 0.1  with 6 iterations
+    lambd = 1 / np.sqrt(np.max([Nx, Ny])) * 1                         # lamda multiplication factor (best = 0.5 or 1 or make it 100000)   # 1
+    ret = shifted_rPCA(qmat, transform_list, nmodes_max=10, eps=1e-4, Niter=spod_iter, use_rSVD=True, mu=mu, lambd=lambd)
     # ret = shifted_POD(qmat, transform_list, nmodes=np.asarray([4, 2]), eps=1e-4, Niter=spod_iter, use_rSVD=False)
     qframes, qtilde, rel_err = ret.frames, ret.data_approx, ret.rel_err_hist
 

@@ -18,8 +18,8 @@ impath = "./data/"
 os.makedirs(impath, exist_ok=True)
 
 # This condition solves the wildfire model and saves the results in .npy files for model reduction
-solve_wildfire = True
-solve_shifts = True
+solve_wildfire = False
+solve_shifts = False
 Dimension = "2D"
 if solve_wildfire:
     tic = time.process_time()
@@ -27,7 +27,7 @@ if solve_wildfire:
     # (500, 500, 1000, 10, Lxi=500, Leta=500, cfl=1.0 / np.sqrt(2))  2D  T = 1000s
     # (3000, 1, 6000, 10, Lxi=1000, Leta=1000, cfl=0.7)  1D  T = 1400s
     # (3000, 1, 12000, 10, Lxi=1000, Leta=1000, cfl=0.5)  1D  T = 2000s  (not used at the moment)
-    wf = Wildfire(Nxi=500, Neta=1 if Dimension == "1D" else 500, timesteps=1000, select_every_n_timestep=10)
+    wf = Wildfire(Nxi=500, Neta=1 if Dimension == "1D" else 500, timesteps=500, select_every_n_timestep=10)
     wf.solver()
     toc = time.process_time()
     print(f"Time consumption in solving wildfire PDE : {toc - tic:0.4f} seconds")
@@ -70,7 +70,7 @@ if solve_shifts:
         PlotFOM2D(SnapMat=SnapShotMatrix, X=X, Y=Y, X_2D=X_2D, Y_2D=Y_2D, t=t, interactive=False, close_up=False,
                   plot_every=10, plot_at_all=False)
 
-        deltaNew = Shifts_2D(SnapShotMatrix=SnapShotMatrix, X=X, Y=Y, t=t, edge_detection=False)
+        deltaNew = Shifts_2D(SnapShotMatrix=SnapShotMatrix, X=X, Y=Y, t=t, edge_detection=True)
     np.save(impath + 'Shifts558.49.npy', deltaNew)
 
 
@@ -129,7 +129,7 @@ elif method == 'srPCA':
         solve = True
         if solve:
             tic = time.perf_counter()
-            qframe0, qframe1, qframe2, qtilde = srPCA_latest_1D(q=T, delta=delta, X=X, t=t, spod_iter=50)
+            qframe0, qframe1, qframe2, qtilde, q_POD = srPCA_latest_1D(q=T, delta=delta, X=X, t=t, spod_iter=10)
             toc = time.perf_counter()
             print(f"Time consumption in solving 1D srPCA : {toc - tic:0.4f} seconds")
         else:
@@ -146,10 +146,10 @@ elif method == 'srPCA':
         SnapShotMatrix = np.reshape(np.transpose(SnapShotMatrix), newshape=[Nt, 2, Nx, Ny], order="F")
         T = np.transpose(np.reshape(np.squeeze(SnapShotMatrix[:, 0, :, :]), newshape=[Nt, -1], order="F"))
         S = np.transpose(np.reshape(np.squeeze(SnapShotMatrix[:, 1, :, :]), newshape=[Nt, -1], order="F"))
-        solve = False
+        solve = True
         if solve:
             tic = time.perf_counter()
-            qframe0_lab, qframe1_lab, qtilde, q_POD = srPCA_latest_2D(q=T, delta=delta, X=X, Y=Y, t=t, spod_iter=10)
+            qframe0_lab, qframe1_lab, qtilde, q_POD = srPCA_latest_2D(q=T, delta=delta, X=X, Y=Y, t=t, spod_iter=6)
             toc = time.perf_counter()
             print(f"Time consumption in solving 2D srPCA : {toc - tic:0.4f} seconds")
         else:
