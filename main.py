@@ -8,7 +8,7 @@ from scipy.sparse import identity, block_diag, csr_array, eye
 from Plots import PlotFlow
 from Transforms import Transforms
 from sklearn.utils.extmath import randomized_svd
-from Dynamical_model import sDEIM_Mat, sPOD_sDEIM, subsample, \
+from Dynamical_model import sPOD_Galerkin_Mat, sPOD_Galerkin, subsample, \
     make_initial_condition, get_transformation_operators, get_online_state
 import time
 import numpy as np
@@ -24,23 +24,10 @@ os.makedirs(impath, exist_ok=True)
 
 # Problem variables
 Dimension = "1D"
-Nxi = 500
+Nxi = 2000
 Neta = 1
-Nt = 1000
+Nt = 4000
 tm = "rk4"  # Time stepping method
-
-# %% Reduced order modelling with POD-DEIM
-# Steps:
-# B1. Offline stage:
-#   B1.1 : Run the FOM once.
-#   B1.2 : Run the POD algorithm.
-#   B1.3 : Save all the data along with the basis vectors.
-
-# B2. Online stage:
-#   B2.1 : Run the POD-DEIM algorithm.
-#   B2.2 : Project the obtained result onto the basis vectors calculated in the offline stage.
-#   B2.3 : Calculate the online error and the offline error.
-
 
 # %%
 # A1.1 or B1.1 : Run the FOM once
@@ -75,31 +62,20 @@ print(f"Time consumption in computing the shifts : {toc - tic:0.4f} seconds")
 # %%
 # A1.3 : Run the sPOD algorithm
 tic = time.process_time()
-qs_T_offline, NmT_lst, V_T, qframes_T = srPCA_latest_1D(qs[:wf.Nxi], delta, wf.X, wf.t, spod_iter=100)
-qs_S_offline, NmS_lst, V_S, qframes_S = srPCA_latest_1D(qs[wf.Nxi:], delta, wf.X, wf.t, spod_iter=100)
-V = np.block([
-    [V_T[0], np.zeros_like(V_S[0]), V_T[1], np.zeros_like(V_S[1]), V_T[2], np.zeros_like(V_S[2])],
-    [np.zeros_like(V_T[0]), V_S[0], np.zeros_like(V_T[1]), V_S[1], np.zeros_like(V_T[2]), V_S[2]]
-])
+qs_offline, Nm_lst, V, qframes = srPCA_latest_1D(qs, delta, wf.X, wf.t, spod_iter=100)
 toc = time.process_time()
-
-Nm_lst = [NmT_lst, NmS_lst]
-qframes = [qframes_T, qframes_S]
-qs_offline = np.concatenate((qs_T_offline, qs_S_offline), axis=0)
 print(f"Time consumption in sPOD algorithm : {toc - tic:0.4f} seconds")
 
 # %%
 # A1.4 : Calculate the offline error
-err_full_T = np.linalg.norm(qs[:wf.Nxi] - qs_offline[:wf.Nxi]) / np.linalg.norm(qs[:wf.Nxi])
-err_full_S = np.linalg.norm(qs[wf.Nxi:] - qs_offline[wf.Nxi:]) / np.linalg.norm(qs[wf.Nxi:])
-print("Error for offline sPOD recons for T: {}".format(err_full_T))
-print("Error for offline sPOD recons for S: {}".format(err_full_S))
+err_full = np.linalg.norm(qs - qs_offline) / np.linalg.norm(qs)
+print("Error for offline sPOD recons for T: {}".format(err_full))
 
 # %%
 # A1.5 : Save the frame results when doing large computations
 impath = "./data/result_offline_sPOD_1D/"
 os.makedirs(impath, exist_ok=True)
-np.save(impath + 'sPOD_basis.npy', V)
+np.save(impath + 'sPOD_basis.npy', V[0])
 np.save(impath + 'shifts.npy', delta)
 np.save(impath + 'modes_list.npy', Nm_lst)
 np.save(impath + 'qframes.npy', qframes)
@@ -116,37 +92,30 @@ qframes = np.load(impath + 'qframes.npy')
 delta_sampled = subsample(delta, wf, num_sample=1000)
 
 # Construct the system matrices for the DEIM approach
-V_delta, W_delta, LHS_matrix, RHS_matrix_lin = sDEIM_Mat(V, delta_sampled, Nm_lst, qs, wf)
+V_delta, W_delta, LHS_matrix, RHS_matrix_lin = sPOD_Galerkin_Mat(V, delta_sampled, wf)
 
 # Initial condition for online phase
 a0 = make_initial_condition(V, q0)
 
 # Time integration
 tic_R = time.process_time()
-as_ = sPOD_sDEIM(V_delta, W_delta, LHS_matrix, RHS_matrix_lin, a0, delta_sampled,
-                 wf, Nm_lst, ti_method=tm, red_nl=False)
+as_ = sPOD_Galerkin(LHS_matrix, RHS_matrix_lin, a0, delta_sampled,
+                    wf, ti_method=tm)
 toc_R = time.process_time()
 
 #%%
 # A2.2 : Project the obtained result onto the basis vectors calculated in the offline stage.
-Nm = sum(sum(Nm_lst))
+Nm = Nm_lst[0]
 as_online = as_[:Nm]
 delta_online = as_[Nm:]
 _, T_trafo = get_transformation_operators(delta_online, wf)
-qs_online = get_online_state(T_trafo, V, as_online, wf, Nm_lst)
+qs_online = get_online_state(T_trafo, V, as_online, wf)
 
 #%%
 # A2.3 : Calculate the online error
-err_full_T = np.linalg.norm(qs[:wf.Nxi] - qs_online[:wf.Nxi]) / np.linalg.norm(qs[:wf.Nxi])
-err_full_S = np.linalg.norm(qs[wf.Nxi:] - qs_online[wf.Nxi:]) / np.linalg.norm(qs[wf.Nxi:])
-print("Error for online sPOD recons for T: {}".format(err_full_T))
-print("Error for online sPOD recons for S: {}".format(err_full_S))
+err_full = np.linalg.norm(qs - qs_online) / np.linalg.norm(qs)
+print("Error for online sPOD recons for T: {}".format(err_full))
 
-# %% Re-dimensionlize
-wf.ReDim_grid()
-qs = wf.ReDim_qs(qs)
-qs_offline = wf.ReDim_qs(qs_offline)
-qs_online = wf.ReDim_qs(qs_online)
 
 # %% Plot the results
 pf = PlotFlow(wf.X, wf.Y, wf.t)
@@ -158,7 +127,7 @@ if Dimension == "1D":
 else:
     pf.plot2D(qs, name="original", immpath="./plots/2D/sPOD_sDEIM/",
               save_plot=True, plot_every=100, plot_at_all=True)
-    pf.plot2D(qs_offline, name="offline", immpath="./plots/2D/sPOD_sDEIM/",
-              save_plot=True, plot_every=100, plot_at_all=True)
-    pf.plot2D(qs_online, name="online", immpath="./plots/2D/sPOD_sDEIM/",
-              save_plot=True, plot_every=100, plot_at_all=True)
+    # pf.plot2D(qs_offline, name="offline", immpath="./plots/2D/sPOD_sDEIM/",
+    #           save_plot=True, plot_every=100, plot_at_all=True)
+    # pf.plot2D(qs_online, name="online", immpath="./plots/2D/sPOD_sDEIM/",
+    #           save_plot=True, plot_every=100, plot_at_all=True)
