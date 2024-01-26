@@ -6,12 +6,16 @@ from scipy.linalg import qr
 import matplotlib.pyplot as plt
 import sys
 
+import jax.numpy as jnp
+import jax.lax
+
 from Coefficient_Matrix import CoefficientMatrix
 
-np.set_printoptions(linewidth=np.inf)
+jnp.set_printoptions(linewidth=jnp.inf)
 
 import sys
 import os
+
 
 sys.path.append('./sPOD/lib/')
 
@@ -25,16 +29,17 @@ def NL(T, S):
 
 def central_FDMatrix(order, Nx, dx):
     from scipy.sparse import spdiags
+    from jax.experimental import sparse
 
     # column vectors of all ones
-    enm2 = np.ones(Nx - 2)
-    enm4 = np.ones(Nx - 4)
-    enm6 = np.ones(Nx - 6)
+    enm2 = jnp.ones(Nx - 2)
+    enm4 = jnp.ones(Nx - 4)
+    enm6 = jnp.ones(Nx - 6)
 
     # column vectors of all zeros
-    z4 = np.zeros(4)
-    z6 = np.zeros(6)
-    znm2 = np.zeros_like(enm2)
+    z4 = jnp.zeros(4)
+    z6 = jnp.zeros(6)
+    znm2 = jnp.zeros_like(enm2)
 
     # determine the diagonal entries 'diagonals_D' and the corresponding
     # diagonal indices 'indices' based on the specified order
@@ -43,29 +48,29 @@ def central_FDMatrix(order, Nx, dx):
     elif order == 4:
         pass
     elif order == 6:
-        diag3 = np.hstack([-enm6, z6])
-        diag2 = np.hstack([5, 9*enm6, 5, z4])
-        diag1 = np.hstack([-30, -40, -45*enm6, -40, -30, -60, 0])
-        diag0 = np.hstack([-60, znm2, 60])
-        diagonals_D = (1 / 60) * np.array([diag3, diag2, diag1, diag0,
-                                           -np.flipud(diag1), -np.flipud(diag2), -np.flipud(diag3)])
+        diag3 = jnp.hstack([-enm6, z6])
+        diag2 = jnp.hstack([5, 9*enm6, 5, z4])
+        diag1 = jnp.hstack([-30, -40, -45*enm6, -40, -30, -60, 0])
+        diag0 = jnp.hstack([-60, znm2, 60])
+        diagonals_D = (1 / 60) * jnp.array([diag3, diag2, diag1, diag0,
+                                           -jnp.flipud(diag1), -jnp.flipud(diag2), -jnp.flipud(diag3)])
         indices = [-3, -2, -1, 0, 1, 2, 3]
     else:
         print("Order of accuracy %i is not supported.", order)
         exit()
 
     # assemble the output matrix
-    D = spdiags(diagonals_D, indices, format="csr")
+    D = sparse.BCOO.fromdense(spdiags(diagonals_D, indices, format="csr").todense())
 
     return D * (1 / dx)
 
 
 def make_initial_condition(V, q0):
 
-    a = np.linalg.inv(V.transpose() @ V) @ (V.transpose() @ q0)
+    a = jnp.linalg.inv(V.transpose() @ V) @ (V.transpose() @ q0)
 
     # Initialize the shifts with zero for online phase
-    a = np.concatenate((a, [0]))
+    a = jnp.concatenate((a, jnp.asarray([0])))
 
     return a
 
@@ -75,10 +80,10 @@ def subsample(delta, wf, num_sample):
     active_subspace_factor = 1
 
     # sampling points for the shifts (The shift values can range from 0 to X/2 and then is a mirror image for X/2 to X)
-    delta_samples = np.linspace(0, wf.X[-1], num_sample)
+    delta_samples = jnp.linspace(0, wf.X[-1], num_sample)
 
     delta_sampled = [active_subspace_factor * delta_samples,
-                     np.zeros_like(delta_samples),
+                     jnp.zeros_like(delta_samples),
                      delta_samples]
 
     return delta_sampled
@@ -92,7 +97,7 @@ def get_transformation_operators(delta_sampled, wf):
     L = [wf.X[-1]]
 
     # Create the transformations
-    trafo_1 = transforms(data_shape, L, shifts=-delta_sampled[0],
+    trafo_1 = transforms(data_shape, L, shifts=delta_sampled[0],
                          dx=[dx],
                          use_scipy_transform=False,
                          interp_order=5)
@@ -105,8 +110,6 @@ def make_V_W_delta(U, T_delta, wf, steps):
     V_delta = []
     W_delta = []
 
-    # lst = list(accumulate([item for sublist in Nm_lst for item in sublist]))
-
     D = central_FDMatrix(order=6, Nx=wf.Nxi, dx=wf.dx)
     DU = - D @ U
 
@@ -114,7 +117,7 @@ def make_V_W_delta(U, T_delta, wf, steps):
         V11 = T_delta[0][it] @ U
         V_delta.append(V11)
 
-        W11 = T_delta[0][it] @ DU
+        W11 = D @ (T_delta[0][it] @ U)
         W_delta.append(W11)
 
     return V_delta, W_delta
@@ -131,7 +134,7 @@ def make_LHS_mat(V_delta, W_delta):
 
         LHS_mat.append([LHS11, LHS12, LHS22])
 
-    return LHS_mat
+    return jnp.array(LHS_mat)
 
 
 def make_RHS_mat_lin(V_delta, W_delta, wf):
@@ -145,7 +148,7 @@ def make_RHS_mat_lin(V_delta, W_delta, wf):
 
         RHS_mat_lin.append([A_1, A_2])
 
-    return RHS_mat_lin
+    return jnp.array(RHS_mat_lin)
 
 
 def sPOD_Galerkin_Mat(U, delta_sampled, wf):
@@ -176,11 +179,11 @@ def make_D_a(a):
 def prepare_LHS_mat(LHS_matrix, D_a, intervalIdx, weight):
 
     M11 = weight * LHS_matrix[intervalIdx][0] + (1 - weight) * LHS_matrix[intervalIdx + 1][0]
-    M12 = (weight * LHS_matrix[intervalIdx][1] + (1 - weight) * LHS_matrix[intervalIdx + 1][1]) @ D_a
+    M12 = (weight * LHS_matrix[intervalIdx][1] + (1 - weight) * LHS_matrix[intervalIdx + 1][1]) @ D_a[:, jnp.newaxis]
     M21 = M12.transpose()
-    M22 = (D_a.transpose() @ (weight * LHS_matrix[intervalIdx][2] +
-                              (1 - weight) * LHS_matrix[intervalIdx + 1][2])) @ D_a
-    M = np.block([
+    M22 = (D_a[:, jnp.newaxis].transpose() @ (weight * LHS_matrix[intervalIdx][2] +
+                              (1 - weight) * LHS_matrix[intervalIdx + 1][2])) @ D_a[:, jnp.newaxis]
+    M = jnp.block([
         [M11, M12],
         [M21, M22]
     ])
@@ -191,11 +194,11 @@ def prepare_LHS_mat(LHS_matrix, D_a, intervalIdx, weight):
 def prepare_RHS_mat_lin(RHS_matrix_lin, D_a, intervalIdx, weight):
 
     A11 = weight * RHS_matrix_lin[intervalIdx][0] + (1 - weight) * RHS_matrix_lin[intervalIdx + 1][0]
-    A21 = D_a.transpose() @ (weight * RHS_matrix_lin[intervalIdx][1] +
+    A21 = D_a[:, jnp.newaxis].transpose() @ (weight * RHS_matrix_lin[intervalIdx][1] +
                              (1 - weight) * RHS_matrix_lin[intervalIdx + 1][1])
-    A = np.block([
-        [A11, np.zeros((A11.shape[0], 1))],
-        [A21, np.zeros((A21.shape[0], 1))]
+    A = jnp.block([
+        [A11, jnp.zeros((A11.shape[0], 1))],
+        [A21, jnp.zeros((A21.shape[0], 1))]
     ])
 
     return A
@@ -224,33 +227,22 @@ def prepare_RHS_mat_nonlin(a, V_delta, W_delta, D_a, lst, wf, intervalIdx, weigh
 
 def findIntervalAndGiveInterpolationWeight_1D(xPoints, xStar):
 
-    nPoints = len(xPoints[2])
-    intervalIdx_arr = np.argwhere(xStar >= xPoints[2])
+    intervalBool_arr = jnp.where(xStar >= xPoints, 1, 0)
+    mixed = intervalBool_arr[:-1] * (1 - intervalBool_arr)[1:]
+    index = jnp.sum(mixed * jnp.arange(0, mixed.shape[0]))
 
-    if intervalIdx_arr.size == 0:  # case when xStar is smaller than the smallest value in xPoints
-        intervalIdx = 0
-        alpha = 1
+    intervalIdx = index
+    alpha = (xPoints.at[intervalIdx + 1].get() - xStar) / (xPoints.at[intervalIdx + 1].get() - xPoints.at[intervalIdx].get())
 
-        return intervalIdx, alpha
-    else:
-        if intervalIdx_arr[-1] == nPoints:  # case when xStar is bigger than the biggest value in xPoints
-            intervalIdx = nPoints - 1
-            alpha = 0
-
-            return intervalIdx, alpha
-        else:  # case when xStar lies within the interval [xPoints(1) xPoints(end))
-            # compute interpolation weight based on linear interpolation
-            intervalIdx = intervalIdx_arr[-1]
-            alpha = (xPoints[2][intervalIdx + 1] - xStar) / (xPoints[2][intervalIdx + 1] - xPoints[2][intervalIdx])
-
-            return intervalIdx.item(), alpha.item()
+    return intervalIdx, alpha
 
 
 def sPOD_Galerkin(LHS_matrix, RHS_matrix_lin, a, delta_sampled, wf, ti_method):
 
-    def RHS(a_, LHS_matrix_, RHS_matrix_lin_, delta_sampled_):
+    def RHS(a_, u_, LHS_matrix_, RHS_matrix_lin_, delta_sampled_):
         # Compute the interpolation weight and the interval in which the shift lies
-        intervalIdx, weight = findIntervalAndGiveInterpolationWeight_1D(delta_sampled_, a_[-1])
+        print(delta_sampled_[2].shape)
+        intervalIdx, weight = findIntervalAndGiveInterpolationWeight_1D(delta_sampled_[2], a_[-1])
 
         # Assemble the dynamic matrix D(a)
         D_a = make_D_a(a_)
@@ -261,53 +253,46 @@ def sPOD_Galerkin(LHS_matrix, RHS_matrix_lin, a, delta_sampled, wf, ti_method):
         # Prepare the RHS side of the matrix (linear part) using D(a)
         A = prepare_RHS_mat_lin(RHS_matrix_lin_, D_a, intervalIdx, weight)
 
-        return np.linalg.inv(M) @ (A @ a_)
+        return jnp.linalg.inv(M) @ (A @ a_)
 
     if ti_method == "rk4":
+        # Time loop
+        as_ = jnp.zeros((a.shape[0], wf.Nt))
+        as_ = as_.at[:, 0].set(a)
 
-        as_ = np.zeros((a.shape[0], wf.Nt))
-        for n in range(wf.Nt):
-            a = wf.rk4(RHS, a, wf.dt, LHS_matrix, RHS_matrix_lin, delta_sampled)
-            as_[:, n] = a
+        @jax.jit
+        def body(n, as_):
+            # Main Runge-Kutta 4 solver step
+            h = wf.rk4(RHS, as_[:, n - 1], jnp.zeros_like(as_), wf.dt, LHS_matrix, RHS_matrix_lin, delta_sampled)
+            return as_.at[:, n].set(h)
 
-            print('Time step: ', n)
+        return jax.lax.fori_loop(1, wf.Nt, body, as_)
 
-        return as_
+    elif ti_method == "bdf4":
+        @jax.jit
+        def body(x, u):
+            return RHS(x, u, LHS_matrix, RHS_matrix_lin, delta_sampled)
+
+        return wf.bdf4(f=body, tt=wf.t, x0=a, uu=jnp.zeros_like(a.shape[0], wf.Nt).T).T
+
+    elif ti_method == "bdf4_updated":
+        @jax.jit
+        def body(x, u):
+            return RHS(x, u, LHS_matrix, RHS_matrix_lin, delta_sampled)
+
+        return wf.bdf4_updated(f=body, tt=wf.t, x0=a, uu=jnp.zeros((a.shape[0], wf.Nt)).T).T
+
+    elif ti_method == "implicit_midpoint":
+        @jax.jit
+        def body(x, u):
+            return RHS(x, u, LHS_matrix, RHS_matrix_lin, delta_sampled)
+
+        return wf.implicit_midpoint(f=body, tt=wf.t, x0=a, uu=jnp.zeros((a.shape[0], wf.Nt)).T).T
 
 
 def get_online_state(T_trafo, V, a, wf):
-    qs_online = np.zeros((wf.Nxi, wf.Nt), dtype='float')
+    qs_online = jnp.zeros((wf.Nxi, wf.Nt))
     q = V @ a
-
-    # X_1D_grid, t_grid = np.meshgrid(wf.X, wf.t)
-    # X_1D_grid = X_1D_grid.T
-    # t_grid = t_grid.T
-    # from mpl_toolkits.axes_grid1 import make_axes_locatable
-    # fig = plt.figure(figsize=(10, 5))
-    # ax1 = fig.add_subplot(121)
-    # im1 = ax1.pcolormesh(X_1D_grid, t_grid, T[0], cmap='YlOrRd')
-    # ax1.axis('off')
-    # # ax1.axis('scaled')
-    # ax1.set_title(r"$T(x, t)$")
-    # divider = make_axes_locatable(ax1)
-    # cax = divider.append_axes('right', size='10%', pad=0.08)
-    # fig.colorbar(im1, cax=cax, orientation='vertical')
-    #
-    # ax2 = fig.add_subplot(122)
-    # im2 = ax2.pcolormesh(X_1D_grid, t_grid, T[1], cmap='YlOrRd')
-    # ax2.axis('off')
-    # # ax2.axis('scaled')
-    # ax2.set_title(r"$S(x, t)$")
-    # divider = make_axes_locatable(ax2)
-    # cax = divider.append_axes('right', size='10%', pad=0.08)
-    # fig.colorbar(im2, cax=cax, orientation='vertical')
-    #
-    # fig.supylabel(r"time $t$")
-    # fig.supxlabel(r"space $x$")
-    #
-    # plt.show()
-    #
-    # exit()
 
     qs_online += T_trafo[0].apply(q)
 
@@ -384,36 +369,6 @@ def POD_DEIM(V, A_L1, A_L2, A_NL, ST_V, a, wf, n_rom, n_deim, ti_method, red_nl=
         as_ = np.zeros((a.shape[0], wf.Nt))
         for n in range(wf.Nt):
             a = wf.rk4(RHS, a, wf.dt, A_L1, A_L2, A_NL, ST_V, V)
-            as_[:, n] = a
-
-            print('Time step: ', n)
-
-        return as_
-
-
-
-def POD_Galerkin_mat(V, wf):
-    # ---------------------------------------------------
-    # Construct linear operators
-    Mat = CoefficientMatrix(orderDerivative=wf.firstderivativeOrder, Nxi=wf.Nxi,
-                            Neta=wf.Neta, periodicity='Periodic', dx=wf.dx, dy=wf.dy)
-
-    # Convection matrix (Needs to be changed if the velocity is time dependent)
-    C00 = - (wf.v_x[0] * Mat.Grad_Xi_kron + wf.v_y[0] * Mat.Grad_Eta_kron)
-    A_conv = (V.transpose() @ C00) @ V
-
-    return A_conv
-
-
-def POD_Galerkin(A_conv, a, wf, ti_method):
-    def RHS(a_, A_conv_):
-        return A_conv_ @ a_
-
-    if ti_method == "rk4":
-
-        as_ = np.zeros((a.shape[0], wf.Nt))
-        for n in range(wf.Nt):
-            a = wf.rk4(RHS, a, wf.dt, A_conv)
             as_[:, n] = a
 
             print('Time step: ', n)

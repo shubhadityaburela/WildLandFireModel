@@ -8,13 +8,15 @@ from scipy.sparse import identity, block_diag, csr_array, eye
 from Plots import PlotFlow
 from Transforms import Transforms
 from sklearn.utils.extmath import randomized_svd
-from Dynamical_model import POD_Galerkin, POD_Galerkin_mat
 import time
 import numpy as np
 import sys
 import os
 
-np.set_printoptions(threshold=sys.maxsize)
+import jax.numpy as jnp
+import jax.lax
+
+jnp.set_printoptions(threshold=sys.maxsize)
 
 import matplotlib.pyplot as plt
 
@@ -23,10 +25,10 @@ os.makedirs(impath, exist_ok=True)
 
 # Problem variables
 Dimension = "1D"
-Nxi = 1000
+Nxi = 200
 Neta = 1
-Nt = 2000
-tm = "rk4"  # Time stepping method
+Nt = 400
+tm = "bdf4_updated"  # Time stepping method
 
 # %% Reduced order modelling with POD-DEIM
 # Steps:
@@ -43,7 +45,7 @@ tm = "rk4"  # Time stepping method
 # %%
 # A1.1 or B1.1 : Run the FOM once
 tic_F = time.process_time()
-wf = Wildfire(Nxi=Nxi, Neta=Neta if Dimension == "1D" else Nxi, timesteps=Nt)
+wf = Wildfire(Nxi=Nxi, Neta=Neta if Dimension == "1D" else Nxi, timesteps=Nt, cfl=0.3)
 wf.Grid()
 q0 = wf.InitialConditions()
 qs = wf.TimeIntegration(q0, ti_method=tm)
@@ -52,11 +54,11 @@ toc_F = time.process_time()
 
 # %%
 # B1.2 : Run the POD algorithm
-n_rom = 50
+n_rom = 10
 tic = time.process_time()
 V, S, VT = randomized_svd(qs, n_components=n_rom, random_state=None)
 toc = time.process_time()
-qs_offline = V.dot(np.diag(S).dot(VT))
+qs_offline = V.dot(jnp.diag(S).dot(VT))
 print(f"Time consumption in POD : {toc - tic:0.4f} seconds")
 
 
@@ -64,24 +66,24 @@ print(f"Time consumption in POD : {toc - tic:0.4f} seconds")
 # B1.3 : Save all the data along with the basis vectors
 impath = "./data/result_offline_POD_1D/"
 os.makedirs(impath, exist_ok=True)
-np.save(impath + 'POD_basis.npy', V)
-np.save(impath + 'qs.npy', qs)
+jnp.save(impath + 'POD_basis.npy', V)
+jnp.save(impath + 'qs.npy', qs)
 
 # %%
 # B2.1 : Run the POD-DEIM algorithm.
 impath = "./data/result_offline_POD_1D/"
-V = np.load(impath + 'POD_basis.npy')
-qs = np.load(impath + 'qs.npy')
+V = jnp.load(impath + 'POD_basis.npy')
+qs = jnp.load(impath + 'qs.npy')
 
 # Initial condition for dynamical simulation
 a = V.transpose().dot(q0)
 
 # Construct the system matrices for the DEIM approach
-A_conv = POD_Galerkin_mat(V, wf)
+wf.POD_Galerkin_mat(V)
 
 # Time integration
 tic_R = time.process_time()
-as_ = POD_Galerkin(A_conv, a, wf, ti_method=tm)
+as_ = wf.Timeintegration_POD_Galerkin(a, ti_method=tm)
 toc_R = time.process_time()
 
 # %%
@@ -90,10 +92,10 @@ qs_online = V @ as_
 
 # %%
 # B2.3 : Calculate the online error and the offline error.
-err_full_offline = np.linalg.norm(qs - qs_offline) / np.linalg.norm(qs)
+err_full_offline = jnp.linalg.norm(qs - qs_offline) / jnp.linalg.norm(qs)
 print("Error for offline POD recons for T: {}".format(err_full_offline))
 
-err_full_online = np.linalg.norm(qs - qs_online) / np.linalg.norm(qs)
+err_full_online = jnp.linalg.norm(qs - qs_online) / jnp.linalg.norm(qs)
 print("Error for online POD recons for T: {}".format(err_full_online))
 
 print(f"Time consumption in solving FOM wildfire PDE : {toc_F - tic_F:0.4f} seconds")
@@ -107,10 +109,3 @@ if Dimension == "1D":
     pf.plot1D(qs, name="original", immpath="./plots/1D/POD_DEIM/")
     pf.plot1D(qs_offline, name="offline", immpath="./plots/1D/POD_DEIM/")
     pf.plot1D(qs_online, name="online", immpath="./plots/1D/POD_DEIM/")
-else:
-    pf.plot2D(qs, name="original", immpath="./plots/2D/POD_DEIM/",
-              save_plot=True, plot_every=100, plot_at_all=True)
-    pf.plot2D(qs_offline, name="offline", immpath="./plots/2D/POD_DEIM/",
-              save_plot=True, plot_every=100, plot_at_all=True)
-    pf.plot2D(qs_online, name="online", immpath="./plots/2D/POD_DEIM/",
-              save_plot=True, plot_every=100, plot_at_all=True)
