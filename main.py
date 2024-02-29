@@ -98,70 +98,70 @@ plt.rc('legend', fontsize=SMALL_SIZE)  # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 
-# %%
-# A1.4 : Calculate the offline error
-err_full = jnp.linalg.norm(qs - qs_offline) / jnp.linalg.norm(qs)
-print("Error for offline sPOD recons for q: {}".format(err_full))
-
-# %%
-# A1.5 : Save the frame results when doing large computations
-impath = "./data/result_offline_sPOD_1D/"
-os.makedirs(impath, exist_ok=True)
-jnp.save(impath + 'sPOD_basis.npy', V[0])
-jnp.save(impath + 'shifts.npy', delta)
-jnp.save(impath + 'modes_list.npy', Nm_lst)
-jnp.save(impath + 'qframes.npy', qframes)
-
-# %%
-# A2.1 : Run the sPOD-sDEIM algorithm
-impath = "./data/result_offline_sPOD_1D/"
-V = jnp.load(impath + 'sPOD_basis.npy')
-delta = jnp.load(impath + 'shifts.npy')
-Nm_lst = jnp.load(impath + 'modes_list.npy')
-qframes = jnp.load(impath + 'qframes.npy')
-
-# Subsample the shifts
-delta_sampled = subsample(delta, wf, num_sample=1500)
-
-# Construct the system matrices for the DEIM approach
-V_delta, W_delta, LHS_matrix, RHS_matrix_lin = sPOD_Galerkin_Mat(V, delta_sampled, wf)
-
-# Initial condition for online phase
-a0 = make_initial_condition(V, q0)
-
-# Time integration
-tic_R = time.process_time()
-as_ = sPOD_Galerkin(LHS_matrix, RHS_matrix_lin, a0, delta_sampled, wf, ti_method=tm)
-toc_R = time.process_time()
-
-#%%
-# A2.2 : Project the obtained result onto the basis vectors calculated in the offline stage.
-Nm = Nm_lst[0]
-as_online = as_[:Nm]
-delta_online = as_[Nm:]
-# plt.plot(jnp.squeeze(wf.t), jnp.squeeze(as_online))
-# plt.plot(jnp.squeeze(wf.t), jnp.squeeze(delta_online))
-# plt.show()
-_, T_trafo = get_transformation_operators(delta_online, wf)
-qs_online = get_online_state(T_trafo, V, as_online, wf)
-
-#%%
-# A2.3 : Calculate the online error
-err_full = jnp.linalg.norm(qs - qs_online) / jnp.linalg.norm(qs)
-print("Error for online sPOD recons for q: {}".format(err_full))
-
-
-# %% Plot the results
-pf = PlotFlow(wf.X, wf.Y, wf.t)
-# Plot the model
-if Dimension == "1D":
-    pf.plot1D(qs, name="original", immpath="./plots/1D/sPOD_sDEIM/")
-    pf.plot1D(qs_offline, name="offline", immpath="./plots/1D/sPOD_sDEIM/")
-    pf.plot1D(qs_online, name="online", immpath="./plots/1D/sPOD_sDEIM/")
-
-
-
-
+# # %%
+# # A1.4 : Calculate the offline error
+# err_full = jnp.linalg.norm(qs - qs_offline) / jnp.linalg.norm(qs)
+# print("Error for offline sPOD recons for q: {}".format(err_full))
+#
+# # %%
+# # A1.5 : Save the frame results when doing large computations
+# impath = "./data/result_offline_sPOD_1D/"
+# os.makedirs(impath, exist_ok=True)
+# jnp.save(impath + 'sPOD_basis.npy', V[0])
+# jnp.save(impath + 'shifts.npy', delta)
+# jnp.save(impath + 'modes_list.npy', Nm_lst)
+# jnp.save(impath + 'qframes.npy', qframes)
+#
+# # %%
+# # A2.1 : Run the sPOD-sDEIM algorithm
+# impath = "./data/result_offline_sPOD_1D/"
+# V = jnp.load(impath + 'sPOD_basis.npy')
+# delta = jnp.load(impath + 'shifts.npy')
+# Nm_lst = jnp.load(impath + 'modes_list.npy')
+# qframes = jnp.load(impath + 'qframes.npy')
+#
+# # Subsample the shifts
+# delta_sampled = subsample(delta, wf, num_sample=1500)
+#
+# # Construct the system matrices for the DEIM approach
+# V_delta, W_delta, LHS_matrix, RHS_matrix_lin = sPOD_Galerkin_Mat(V, delta_sampled, wf)
+#
+# # Initial condition for online phase
+# a0 = make_initial_condition(V, q0)
+#
+# # Time integration
+# tic_R = time.process_time()
+# as_ = sPOD_Galerkin(LHS_matrix, RHS_matrix_lin, a0, delta_sampled, wf, ti_method=tm)
+# toc_R = time.process_time()
+#
+# #%%
+# # A2.2 : Project the obtained result onto the basis vectors calculated in the offline stage.
+# Nm = Nm_lst[0]
+# as_online = as_[:Nm]
+# delta_online = as_[Nm:]
+# # plt.plot(jnp.squeeze(wf.t), jnp.squeeze(as_online))
+# # plt.plot(jnp.squeeze(wf.t), jnp.squeeze(delta_online))
+# # plt.show()
+# _, T_trafo = get_transformation_operators(delta_online, wf)
+# qs_online = get_online_state(T_trafo, V, as_online, wf)
+#
+# #%%
+# # A2.3 : Calculate the online error
+# err_full = jnp.linalg.norm(qs - qs_online) / jnp.linalg.norm(qs)
+# print("Error for online sPOD recons for q: {}".format(err_full))
+#
+#
+# # %% Plot the results
+# pf = PlotFlow(wf.X, wf.Y, wf.t)
+# # Plot the model
+# if Dimension == "1D":
+#     pf.plot1D(qs, name="original", immpath="./plots/1D/sPOD_sDEIM/")
+#     pf.plot1D(qs_offline, name="offline", immpath="./plots/1D/sPOD_sDEIM/")
+#     pf.plot1D(qs_online, name="online", immpath="./plots/1D/sPOD_sDEIM/")
+#
+#
+#
+#
 
 
 
@@ -181,7 +181,7 @@ if Dimension == "1D":
 #                          bbox_to_anchor=(0.65, 0.55),    # relative axes coordinates
 #                          loc=3)                       # loc=lower left corner
 #
-# inset_axes1.pcolormesh(X_1D_grid, t_grid, qs)
+# inset_axes1.pcolormesh(X_1D_grid, t_grid, qs, cmap='YlOrRd')
 # inset_axes1.set_xlabel(r"$x$")
 # inset_axes1.set_ylabel(r"$t$")
 # inset_axes1.set_yticklabels([])
@@ -203,7 +203,7 @@ if Dimension == "1D":
 #                          bbox_to_anchor=(0.65, 0.55),    # relative axes coordinates
 #                          loc=3)                       # loc=lower left corner
 #
-# inset_axes2.pcolormesh(X_1D_grid, t_grid, qs_low)
+# inset_axes2.pcolormesh(X_1D_grid, t_grid, qs_low, cmap='YlOrRd')
 # inset_axes2.set_xlabel(r"$x$")
 # inset_axes2.set_ylabel(r"$t$")
 # inset_axes2.set_yticklabels([])
@@ -214,49 +214,51 @@ if Dimension == "1D":
 # fig.savefig('svd', dpi=300, transparent=True)
 
 
-#
-# fig, axs = plt.subplots(1, 1, num=3, figsize=(8, 8))
-# axs.semilogy(np.arange(rank) + 1, SIG[:rank] / SIG[0], color="blue", marker="o", label="Traveling wave")
-# axs.semilogy(np.arange(rank) + 1, SIG_s[:rank] / SIG_s[0], color="red", marker="*", label="Stationary wave")
-# axs.axis('auto')
-# axs.set_xlabel(r"$k$")
-# axs.set_ylabel(r"$\sigma_{k} / \sigma_{0}$")
-# axs.xaxis.set_major_locator(MaxNLocator(integer=True))
-# axs.grid()
-# axs.legend(loc='center right')
-#
-# inset_axes1 = inset_axes(axs,
-#                          width=1.4,                     # inch
-#                          height=1.4,                    # inch
-#                          bbox_transform=axs.transAxes,  # relative axes coordinates
-#                          bbox_to_anchor=(0.25, 0.6),    # relative axes coordinates
-#                          loc=3)                       # loc=lower left corner
-#
-# inset_axes1.pcolormesh(X_1D_grid, t_grid, qs)
-# inset_axes1.set_xlabel(r"$x$")
-# inset_axes1.set_ylabel(r"$t$")
-# inset_axes1.set_title("Traveling wave")
-# inset_axes1.set_yticklabels([])
-# inset_axes1.set_xticklabels([])
-# inset_axes1.set_xticks([])
-# inset_axes1.set_yticks([])
-#
-#
-#
-# inset_axes2 = inset_axes(axs,
-#                          width=1.4,                     # inch
-#                          height=1.4,                    # inch
-#                          bbox_transform=axs.transAxes,  # relative axes coordinates
-#                          bbox_to_anchor=(0.25, 0.1),    # relative axes coordinates
-#                          loc=3)                       # loc=lower left corner
-#
-# inset_axes2.pcolormesh(X_1D_grid, t_grid, qs_low)
-# inset_axes2.set_xlabel(r"$x$")
-# inset_axes2.set_ylabel(r"$t$")
-# inset_axes2.set_title("Stationary wave")
-# inset_axes2.set_yticklabels([])
-# inset_axes2.set_xticklabels([])
-# inset_axes2.set_xticks([])
-# inset_axes2.set_yticks([])
-#
-# fig.savefig('svd', dpi=300, transparent=True)
+
+fig, axs = plt.subplots(1, 1, num=3, figsize=(8, 8))
+axs.semilogy(np.arange(rank) + 1, SIG[:rank] / SIG[0], color="blue", marker="o", label="Traveling wave")
+axs.semilogy(np.arange(rank) + 1, SIG_s[:rank] / SIG_s[0], color="red", marker="*", label="Stationary wave")
+axs.axis('auto')
+axs.set_xlabel(r"$k$")
+axs.set_ylabel(r"$\sigma_{k} / \sigma_{0}$")
+axs.xaxis.set_major_locator(MaxNLocator(integer=True))
+axs.grid()
+axs.legend(loc='center right')
+
+inset_axes1 = inset_axes(axs,
+                         width=1.6,                     # inch
+                         height=1.4,                    # inch
+                         bbox_transform=axs.transAxes,  # relative axes coordinates
+                         bbox_to_anchor=(0.25, 0.6),    # relative axes coordinates
+                         loc=3)                       # loc=lower left corner
+
+inset_axes1.pcolormesh(X_1D_grid, t_grid, qs, cmap='YlOrRd')
+inset_axes1.axis('scaled')
+inset_axes1.set_xlabel(r"$x$")
+inset_axes1.set_ylabel(r"$t$")
+inset_axes1.set_title("Traveling wave")
+inset_axes1.set_yticklabels([])
+inset_axes1.set_xticklabels([])
+inset_axes1.set_xticks([])
+inset_axes1.set_yticks([])
+
+
+
+inset_axes2 = inset_axes(axs,
+                         width=1.6,                     # inch
+                         height=1.4,                    # inch
+                         bbox_transform=axs.transAxes,  # relative axes coordinates
+                         bbox_to_anchor=(0.25, 0.1),    # relative axes coordinates
+                         loc=3)                       # loc=lower left corner
+
+inset_axes2.pcolormesh(X_1D_grid, t_grid, qs_low, cmap='YlOrRd')
+inset_axes2.axis('scaled')
+inset_axes2.set_xlabel(r"$x$")
+inset_axes2.set_ylabel(r"$t$")
+inset_axes2.set_title("Stationary wave")
+inset_axes2.set_yticklabels([])
+inset_axes2.set_xticklabels([])
+inset_axes2.set_xticks([])
+inset_axes2.set_yticks([])
+
+fig.savefig('svd', dpi=300, transparent=True)
